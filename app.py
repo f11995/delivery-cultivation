@@ -85,7 +85,7 @@ def load_data(user_id):
 def save_data(date_val, record_type, item, amount, hours, note, tribulation):
     with st.spinner("⏳ 正在將玉簡傳送至雲端藏寶閣..."):
         ws = get_user_records_ws(st.session_state.user_id)
-        # 🛡️ 絕對淨化防禦：確保新增紀錄時，所有欄位都是純 Python 基本型態
+        # 🛡️ 絕對淨化：強制剝離所有前端框架的型態
         ws.append_row([
             str(date_val), 
             str(record_type), 
@@ -95,14 +95,14 @@ def save_data(date_val, record_type, item, amount, hours, note, tribulation):
             str(note), 
             str(tribulation)
         ])
-        st.cache_data.clear() # 清除快取強制重讀
-        update_roster_stats() # 更新排行榜數據
+        st.cache_data.clear()
+        update_roster_stats()
 
 def delete_data(indices_to_drop):
     with st.spinner("⏳ 正在從雲端抹除因果..."):
         ws = get_user_records_ws(st.session_state.user_id)
         for idx in sorted(indices_to_drop, reverse=True):
-            ws.delete_rows(idx + 2) # DataFrame 是 0 起始，Sheets 是 1 起始且有標題列，所以 +2
+            ws.delete_rows(idx + 2)
         st.cache_data.clear()
         update_roster_stats()
 
@@ -122,34 +122,33 @@ def update_profile_field(col_name, value):
     headers = ws.row_values(1)
     col_idx = headers.index(col_name) + 1
     _, row_idx = get_user_profile()
-    ws.update_cell(row_idx, col_idx, value)
+    # 🛡️ 淨化傳入數值
+    if isinstance(value, (int, float)):
+        ws.update_cell(row_idx, col_idx, float(value) if isinstance(value, float) else int(value))
+    else:
+        ws.update_cell(row_idx, col_idx, str(value))
 
 def update_roster_stats():
     df = load_data(st.session_state.user_id)
-    t_inc = df[df['類型'] == '收入']['金額'].sum() if not df.empty else 0
-    t_hr = df[df['類型'] == '收入']['上線時數'].sum() if not df.empty else 0
-    t_days = df[df['類型'] == '收入']['日期'].nunique() if not df.empty else 0
-    t_tribs = df[df['天劫'] == 'True'].shape[0] if not df.empty and '天劫' in df.columns else 0
+    # 🛡️ 絕對淨化：在從 Pandas 取出數據的瞬間，直接套上 int() 和 float() 護盾
+    t_inc = int(df[df['類型'] == '收入']['金額'].sum()) if not df.empty else 0
+    t_hr = float(df[df['類型'] == '收入']['上線時數'].sum()) if not df.empty else 0.0
+    t_days = int(df[df['類型'] == '收入']['日期'].nunique()) if not df.empty else 0
+    t_tribs = int(df[df['天劫'] == 'True'].shape[0]) if not df.empty and '天劫' in df.columns else 0
+    
     avg_w = t_inc / t_hr if t_hr > 0 else 0
-    cp = (t_inc / 100) + (avg_w * 10) + (t_days * 50) + (t_tribs * 300)
+    cp = int((t_inc / 100) + (avg_w * 10) + (t_days * 50) + (t_tribs * 300))
     realm, _, _, _, _, _ = get_realm_info(t_inc)
     mount, _ = get_mount_info(t_hr)
     
     ws = get_roster_ws()
     _, row_idx = get_user_profile()
     
-    # 🛡️ 絕對淨化防禦：強制在傳送清單內轉換型態，不讓 Pandas 型態混入
-    update_values = [[
-        int(t_inc), 
-        float(t_hr), 
-        int(t_days), 
-        int(t_tribs), 
-        int(cp), 
-        str(realm), 
-        str(mount)
-    ]]
+    # 組合純淨陣列，確保沒有 numpy 物件混入
+    pure_values = [[int(t_inc), float(t_hr), int(t_days), int(t_tribs), int(cp), str(realm), str(mount)]]
     
-    ws.update(values=update_values, range_name=f"C{row_idx}:I{row_idx}")
+    # 使用安全的 kwargs 更新方式
+    ws.update(values=pure_values, range_name=f"C{row_idx}:I{row_idx}")
 
 # ==========================================
 # 輔助計算函數
@@ -207,16 +206,23 @@ if not st.session_state.authenticated:
     
     col_p1, col_p2, col_p3 = st.columns([1, 2, 1])
     with col_p2:
-        pwd_input = st.text_input("輸入密令：", type="password", placeholder="例如：VIP001 或 APP密碼")
+        pwd_input = st.text_input("輸入密令：", type="password", placeholder="例如：nine 或 YU888")
         if st.button("🚪 開啟結界", type="primary", use_container_width=True):
             app_pwd = st.secrets.get("APP_PASSWORD", "888888")
-            invites = st.secrets.get("INVITES", {"YU888": "yu_master", "FRIEND01": "friend_1", "FRIEND02": "friend_2"})
             
-            if pwd_input == app_pwd: # 宗主登入
+            # 這裡更新為你的預設陣容，不過 Streamlit 還是會以你 Secrets 裡的設定優先
+            invites = st.secrets.get("INVITES", {
+                "YU888": "yu_master", 
+                "nine": "friend_1", 
+                "ting": "friend_2",
+                "yi": "friend_3"
+            })
+            
+            if pwd_input == app_pwd: # 宗主後台密碼登入
                 st.session_state.authenticated = True
                 st.session_state.user_id = "yu_master"
                 st.rerun()
-            elif pwd_input in invites: # 弟子登入
+            elif pwd_input in invites: # 弟子/宗主代號登入
                 st.session_state.authenticated = True
                 st.session_state.user_id = invites[pwd_input]
                 st.rerun()
@@ -260,11 +266,11 @@ with tab0:
     if df.empty:
         st.info(f"📜 仙途尚未展開... {user_name}道友，請至「每日輸入」完成你的第一次歷練！")
     else:
-        st.markdown(f"<p class='cp-text'>{profile['戰鬥力']:,}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p class='cp-text'>{int(profile['戰鬥力']):,}</p>", unsafe_allow_html=True)
         st.markdown("<p class='cp-label'>⚔️ 綜合戰鬥力 (CP) ⚔️</p>", unsafe_allow_html=True)
         
-        c_realm, n_realm, n_exp, prog, c_title, c_avatar = get_realm_info(profile["總靈石"])
-        m_name, m_avatar = get_mount_info(profile["總時數"])
+        c_realm, n_realm, n_exp, prog, c_title, c_avatar = get_realm_info(int(profile["總靈石"]))
+        m_name, m_avatar = get_mount_info(float(profile["總時數"]))
         
         r_col1, r_col2, r_col3 = st.columns([1, 1, 1.5])
         with r_col1:
@@ -277,7 +283,7 @@ with tab0:
             st.markdown("### ⚡ 突破進度 (靈石)")
             st.progress(prog)
             if n_realm != "已達巔峰":
-                st.write(f"**目前：** `{profile['總靈石']:,}` / **需求：** `{n_exp:,}`")
+                st.write(f"**目前：** `{int(profile['總靈石']):,}` / **需求：** `{n_exp:,}`")
             else: st.success("🎉 你已達到此界巔峰，傲視群雄！")
                 
         st.write("---")
@@ -290,7 +296,7 @@ with tab0:
                 profile["任務ID"] = random.randint(1, 3)
                 profile["任務狀態"] = 0
                 update_profile_field("任務日期", today_str)
-                update_profile_field("任務ID", profile["任務ID"])
+                update_profile_field("任務ID", int(profile["任務ID"]))
                 update_profile_field("任務狀態", 0)
             
             q_id = int(profile["任務ID"]) if profile["任務ID"] else 1
@@ -327,7 +333,7 @@ with tab0:
                 if st.button("🔮 抽取今日運勢", type="primary", use_container_width=True):
                     fortune = random.choice(FORTUNE_POOL)
                     update_profile_field("運勢日期", today_str)
-                    update_profile_field("今日運勢", fortune)
+                    update_profile_field("今日運勢", str(fortune))
                     st.snow()
                     st.rerun()
 
@@ -430,10 +436,10 @@ with tab1:
                 h_disp = f"{int(d_hr)}h {int(round((d_hr - int(d_hr)) * 60))}m" if d_hr > 0 else "0h 0m"
                 
                 d1, d2, d3, d4 = st.columns(4)
-                d1.metric("當日收入", f"${d_inc:,}")
-                d2.metric("當日開銷", f"${d_exp:,}")
+                d1.metric("當日收入", f"${int(d_inc):,}")
+                d2.metric("當日開銷", f"${int(d_exp):,}")
                 d3.metric("當日上線", h_disp) 
-                d4.metric("當日時薪", f"${d_wage:,.0f}")
+                d4.metric("當日時薪", f"${int(d_wage):,.0f}")
             else: st.info("點擊下方日曆查看數字")
 
             cal_year, cal_month = st.session_state.selected_date.year, st.session_state.selected_date.month
@@ -483,8 +489,8 @@ with tab2:
             with st.expander(f"🎯 設定 {selected_month} 目標收入"):
                 new_target = st.number_input("本月目標 (元)", min_value=0, step=1000, value=current_target)
                 if st.button("更新目標", type="primary"): 
-                    update_profile_field("目標月份", selected_month)
-                    update_profile_field("目標金額", new_target)
+                    update_profile_field("目標月份", str(selected_month))
+                    update_profile_field("目標金額", int(new_target))
                     st.rerun()
 
         if not month_df.empty:
@@ -496,7 +502,7 @@ with tab2:
             p_prof = p_inc - p_exp
 
             if current_target > 0:
-                st.markdown(f"### 🚀 目標進度：`${t_inc:,}` / `${current_target:,}`")
+                st.markdown(f"### 🚀 目標進度：`${int(t_inc):,}` / `${current_target:,}`")
                 st.progress(min(t_inc / current_target, 1.0))
                 remaining_amount = current_target - t_inc
                 if remaining_amount > 0:
@@ -506,14 +512,14 @@ with tab2:
                     elif date(s_year, s_month, last_day_of_month) > today: days_left = last_day_of_month 
                     else: days_left = 0 
                     
-                    if days_left > 0: st.info(f"🏃‍♂️ 距離目標還差 **${remaining_amount:,}** 元。每天平均需賺 **${remaining_amount/days_left:,.0f}**！")
-                else: st.success(f"🎉 已經達成設定的目標，超標賺了 **${-remaining_amount:,}** 元！")
+                    if days_left > 0: st.info(f"🏃‍♂️ 距離目標還差 **${int(remaining_amount):,}** 元。每天平均需賺 **${int(remaining_amount/days_left):,.0f}**！")
+                else: st.success(f"🎉 已經達成設定的目標，超標賺了 **${int(-remaining_amount):,}** 元！")
             
             st.write("")
             m1, m2, m3 = st.columns(3)
-            m1.metric("月總收入", f"${t_inc:,}", delta=f"{int(t_inc - p_inc)} (較上月)" if p_inc > 0 else None)
-            m2.metric("月總開銷", f"${t_exp:,}", delta=f"{int(t_exp - p_exp)} (較上月)" if p_exp > 0 else None, delta_color="inverse")
-            m3.metric("本月淨利", f"${n_prof:,}", delta=f"{int(n_prof - p_prof)} (較上月)" if p_prof != 0 else None)
+            m1.metric("月總收入", f"${int(t_inc):,}", delta=f"{int(t_inc - p_inc)} (較上月)" if p_inc > 0 else None)
+            m2.metric("月總開銷", f"${int(t_exp):,}", delta=f"{int(t_exp - p_exp)} (較上月)" if p_exp > 0 else None, delta_color="inverse")
+            m3.metric("本月淨利", f"${int(n_prof):,}", delta=f"{int(n_prof - p_prof)} (較上月)" if p_prof != 0 else None)
             
             st.divider()
             c1, c2 = st.columns([2, 1])
@@ -585,14 +591,14 @@ with tab_lb:
     if roster_records:
         lb_data = []
         for r in roster_records:
-            if r["道號"] != "": # 只顯示有設定名稱的弟子
+            if str(r.get("道號", "")) != "": # 只顯示有設定名稱的弟子
                 lb_data.append({
                     "排名": 0,
-                    "道號": f"{r['道號']}",
-                    "境界": f"{r['境界']} ({r['座騎']})",
-                    "戰鬥力 (CP)": int(r['戰鬥力']),
-                    "累積靈石": f"${int(r['總靈石']):,}",
-                    "度過天劫": int(r['天劫數'])
+                    "道號": f"{str(r['道號'])}",
+                    "境界": f"{str(r['境界'])} ({str(r['座騎'])})",
+                    "戰鬥力 (CP)": int(r['戰鬥力']) if r['戰鬥力'] != '' else 0,
+                    "累積靈石": f"${int(r['總靈石']):,}" if r['總靈石'] != '' else "$0",
+                    "度過天劫": int(r['天劫數']) if r['天劫數'] != '' else 0
                 })
         
         if lb_data:
@@ -606,5 +612,3 @@ with tab_lb:
             st.info("宗門尚無弟子參與排名。")
     else:
         st.info("宗門尚無弟子參與排名。")
-
-
