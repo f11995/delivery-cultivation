@@ -206,7 +206,7 @@ if not st.session_state.authenticated:
     
     col_p1, col_p2, col_p3 = st.columns([1, 2, 1])
     with col_p2:
-        pwd_input = st.text_input("輸入密令：", type="password", placeholder="例如：nine 或 YU888")
+        pwd_input = st.text_input("輸入密令：", type="password", placeholder="邀請碼")
         if st.button("🚪 開啟結界", type="primary", use_container_width=True):
             app_pwd = st.secrets.get("APP_PASSWORD", "888888")
             
@@ -612,3 +612,4 @@ with tab_lb:
             st.info("宗門尚無弟子參與排名。")
     else:
         st.info("宗門尚無弟子參與排名。")
+
