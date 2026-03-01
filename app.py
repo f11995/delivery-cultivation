@@ -208,15 +208,8 @@ if not st.session_state.authenticated:
     with col_p2:
         pwd_input = st.text_input("輸入密令：", type="password", placeholder="邀請碼")
         if st.button("🚪 開啟結界", type="primary", use_container_width=True):
-            app_pwd = st.secrets.get("APP_PASSWORD", "888888")
-            
-            # 這裡更新為你的預設陣容，不過 Streamlit 還是會以你 Secrets 裡的設定優先
-            invites = st.secrets.get("INVITES", {
-                "YU888": "yu_master", 
-                "nine": "friend_1", 
-                "ting": "friend_2",
-                "yi": "friend_3"
-            })
+            app_pwd = st.secrets.get("APP_PASSWORD", "未設定密碼")
+            invites = st.secrets.get("INVITES", {})
             
             if pwd_input == app_pwd: # 宗主後台密碼登入
                 st.session_state.authenticated = True
@@ -612,4 +605,5 @@ with tab_lb:
             st.info("宗門尚無弟子參與排名。")
     else:
         st.info("宗門尚無弟子參與排名。")
+
 
