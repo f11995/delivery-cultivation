@@ -126,9 +126,17 @@ def update_roster_stats():
     realm, _, _, _, _, _ = get_realm_info(t_inc)
     mount, _ = get_mount_info(t_hr)
     
+    # 💡 新增淨化處理：強制將 Pandas 數字轉回純 Python 基本型態
+    t_inc_val = int(t_inc)
+    t_hr_val = float(t_hr)
+    t_days_val = int(t_days)
+    t_tribs_val = int(t_tribs)
+    cp_val = int(cp)
+    
     ws = get_roster_ws()
     _, row_idx = get_user_profile()
-    ws.update(values=[[t_inc, t_hr, t_days, t_tribs, cp, realm, mount]], range_name=f"C{row_idx}:I{row_idx}")
+    # 傳送淨化過後的變數
+    ws.update(values=[[t_inc_val, t_hr_val, t_days_val, t_tribs_val, cp_val, realm, mount]], range_name=f"C{row_idx}:I{row_idx}")
 
 # ==========================================
 # 輔助計算函數
@@ -585,3 +593,4 @@ with tab_lb:
             st.info("宗門尚無弟子參與排名。")
     else:
         st.info("宗門尚無弟子參與排名。")
+
