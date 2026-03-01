@@ -85,7 +85,16 @@ def load_data(user_id):
 def save_data(date_val, record_type, item, amount, hours, note, tribulation):
     with st.spinner("⏳ 正在將玉簡傳送至雲端藏寶閣..."):
         ws = get_user_records_ws(st.session_state.user_id)
-        ws.append_row([str(date_val), record_type, item, amount, hours, note, str(tribulation)])
+        # 🛡️ 絕對淨化防禦：確保新增紀錄時，所有欄位都是純 Python 基本型態
+        ws.append_row([
+            str(date_val), 
+            str(record_type), 
+            str(item), 
+            int(amount), 
+            float(hours), 
+            str(note), 
+            str(tribulation)
+        ])
         st.cache_data.clear() # 清除快取強制重讀
         update_roster_stats() # 更新排行榜數據
 
@@ -122,21 +131,25 @@ def update_roster_stats():
     t_days = df[df['類型'] == '收入']['日期'].nunique() if not df.empty else 0
     t_tribs = df[df['天劫'] == 'True'].shape[0] if not df.empty and '天劫' in df.columns else 0
     avg_w = t_inc / t_hr if t_hr > 0 else 0
-    cp = int((t_inc / 100) + (avg_w * 10) + (t_days * 50) + (t_tribs * 300))
+    cp = (t_inc / 100) + (avg_w * 10) + (t_days * 50) + (t_tribs * 300)
     realm, _, _, _, _, _ = get_realm_info(t_inc)
     mount, _ = get_mount_info(t_hr)
     
-    # 💡 新增淨化處理：強制將 Pandas 數字轉回純 Python 基本型態
-    t_inc_val = int(t_inc)
-    t_hr_val = float(t_hr)
-    t_days_val = int(t_days)
-    t_tribs_val = int(t_tribs)
-    cp_val = int(cp)
-    
     ws = get_roster_ws()
     _, row_idx = get_user_profile()
-    # 傳送淨化過後的變數
-    ws.update(values=[[t_inc_val, t_hr_val, t_days_val, t_tribs_val, cp_val, realm, mount]], range_name=f"C{row_idx}:I{row_idx}")
+    
+    # 🛡️ 絕對淨化防禦：強制在傳送清單內轉換型態，不讓 Pandas 型態混入
+    update_values = [[
+        int(t_inc), 
+        float(t_hr), 
+        int(t_days), 
+        int(t_tribs), 
+        int(cp), 
+        str(realm), 
+        str(mount)
+    ]]
+    
+    ws.update(values=update_values, range_name=f"C{row_idx}:I{row_idx}")
 
 # ==========================================
 # 輔助計算函數
@@ -593,4 +606,5 @@ with tab_lb:
             st.info("宗門尚無弟子參與排名。")
     else:
         st.info("宗門尚無弟子參與排名。")
+
 
