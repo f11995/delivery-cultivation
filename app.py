@@ -180,8 +180,9 @@ if not st.session_state.authenticated:
             # 💡 這裡設定你的宗門邀請碼清單 (在雲端可以改放 Secrets 裡)
             valid_invites = st.secrets.get("INVITES", {
                 "YU888": "yu_master", 
-                "FRIEND01": "friend_1", 
-                "FRIEND02": "friend_2"
+                "nine": "friend_1", 
+                "ting": "friend_2",
+                "yi": "friend_3"
             })
             
             if invite_code in valid_invites:
@@ -559,3 +560,4 @@ with tab_lb:
         st.dataframe(lb_df, hide_index=True, use_container_width=True)
     else:
         st.info("宗門尚無弟子參與排名。")
+
