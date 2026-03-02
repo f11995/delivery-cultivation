@@ -130,7 +130,7 @@ def add_feed_interaction(sender_name, receiver_name, action, message):
     ws.append_row([str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")), str(sender_name), str(receiver_name), str(action), str(message)])
     st.cache_data.clear()
 
-# --- 宗門名冊邏輯 ---
+# --- 宗門名冊與境界賦能邏輯 ---
 def get_user_profile():
     ws = get_roster_ws()
     records = ws.get_all_records()
@@ -164,6 +164,14 @@ def update_other_user_bonus_cp(target_uid, amount_change):
             ws.update_cell(i + 2, cp_idx, curr_cp + amount_change)
             break
 
+def get_realm_tier_and_buffs(total_exp):
+    current_realm, _, _ = get_realm_info(total_exp)
+    if "凡人" in current_realm or "煉氣" in current_realm: return 0, 0, 0, 1.0, 0, 1.0
+    elif "築基" in current_realm: return 1, 5, 5, 0.9, 5, 1.05
+    elif "結丹" in current_realm: return 2, 10, 10, 0.8, 10, 1.1
+    elif "元嬰" in current_realm: return 3, 15, 20, 0.6, 20, 1.2
+    else: return 4, 20, 30, 0.5, 30, 1.3
+
 def update_roster_stats():
     df = load_data(st.session_state.user_id)
     t_inc = int(df[df['類型'] == '收入']['金額'].sum()) if not df.empty else 0
@@ -171,13 +179,13 @@ def update_roster_stats():
     t_days = int(df[df['類型'] == '收入']['日期'].nunique()) if not df.empty else 0
     t_tribs = int(df[df['天劫'] == 'True'].shape[0]) if not df.empty and '天劫' in df.columns else 0
     
+    _, _, _, _, _, cp_mult = get_realm_tier_and_buffs(t_inc)
     avg_w = t_inc / t_hr if t_hr > 0 else 0
-    base_cp = int((t_inc / 100) + (avg_w * 10) + (t_days * 50) + (t_tribs * 300))
+    base_cp = int(((t_inc / 100) + (avg_w * 10) + (t_days * 50) + (t_tribs * 300)) * cp_mult)
     
     ws = get_roster_ws()
     _, row_idx = get_user_profile()
     
-    # 讀取當前的額外戰力並加上去
     records = ws.get_all_records()
     bonus_cp = 0
     for r in records:
@@ -216,7 +224,7 @@ def get_mount_info(total_hours):
 def change_date(new_date): st.session_state.selected_date = new_date
 
 # --- 網頁介面與 CSS 開始 ---
-st.set_page_config(page_title="外送修仙錄 - 大亂鬥版", layout="wide", page_icon="☁️")
+st.set_page_config(page_title="外送修仙錄 - 宗門大亂鬥", layout="wide", page_icon="☁️")
 st.markdown("""
 <style>
     .stApp { background-color: #121212; background-image: radial-gradient(circle at 50% 0%, #2b2b2b 0%, #121212 70%); color: #E0E0E0; }
@@ -227,6 +235,7 @@ st.markdown("""
     .cp-label { font-size: 20px; color: #AAAAAA; text-align: center; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
     .card-box { border: 1px solid #444; border-radius: 10px; padding: 15px; background-color: rgba(30,30,30,0.6); }
     .boss-box { border: 2px solid #FFD700; border-radius: 10px; padding: 20px; background: linear-gradient(45deg, #4b0000, #1a0000); text-align: center; margin-bottom: 20px; box-shadow: 0 0 15px rgba(255, 215, 0, 0.3); }
+    .vip-box { border: 1px dashed #06C167; padding: 10px; border-radius: 8px; background-color: rgba(6, 193, 103, 0.1); margin-top: 10px; font-size: 14px;}
     .feed-box { border-left: 4px solid #06C167; padding-left: 10px; margin-bottom: 10px; background-color: rgba(255,255,255,0.05); padding: 10px; border-radius: 5px; font-size: 14px;}
 </style>
 """, unsafe_allow_html=True)
@@ -281,36 +290,43 @@ df = load_data(st.session_state.user_id)
 k = st.session_state.input_key
 today = date.today()
 cp_value = int(profile.get('戰鬥力', 0)) if str(profile.get('戰鬥力', '')) != '' else 0
+total_stone = int(profile.get('總靈石', 0)) if str(profile.get('總靈石', '')) != '' else 0
+
+atk_tier, alc_win_buff, alc_rug_red, def_mult, def_rebound, cp_mult = get_realm_tier_and_buffs(total_stone)
 
 # ==========================================
-# 分頁 0: 🐉 宗門大殿 (全新隨機破壞友誼玩法)
+# 分頁 0: 🐉 宗門大殿 (指定目標與蒙面暗殺)
 # ==========================================
 with tab0:
     st.markdown(f"<p class='cp-text'>{cp_value:,}</p><p class='cp-label'>⚔️ 綜合戰鬥力 (CP) ⚔️</p>", unsafe_allow_html=True)
     
-    # --- 🎲 隨機互動玩法區 ---
+    if atk_tier > 0:
+        st.markdown(f"<div class='vip-box'><b>👑 你的境界特權 (VIP {atk_tier})：</b><br>1. 戰鬥力每日結算 <b>{cp_mult} 倍</b>加成<br>2. 煉丹大賺機率增加 <b>{alc_win_buff}%</b>，炸爐機率減少 <b>{alc_rug_red}%</b><br>3. 遭受暗器偷襲時，傷害減少 <b>{int((1-def_mult)*100)}%</b>，且有 <b>{def_rebound}%</b> 機率反彈傷害給低境界偷襲者！</div>", unsafe_allow_html=True)
+    
     col_play1, col_play2 = st.columns(2)
     
     with col_play1:
-        st.markdown("### 🎲 激進煉丹爐 (高風險/高報酬)")
-        st.caption("投入 50 點戰鬥力，有 20% 機率煉出『極品仙丹』戰力暴漲，但有 50% 機率『炸爐』血本無歸！")
+        base_win = 20 + alc_win_buff
+        base_rug = max(0, 50 - alc_rug_red)
+        st.markdown("### 🎲 激進煉丹爐")
+        st.caption(f"投入 50 點戰力。你的成功率：{base_win}%，炸爐率：{base_rug}%")
+        
         if st.button("🔥 耗費 50 CP 煉丹", use_container_width=True):
-            if cp_value < 50:
-                st.warning("戰鬥力不足，無法煉丹！快去跑單！")
+            if cp_value < 50: st.warning("戰鬥力不足，無法煉丹！")
             else:
                 roll = random.randint(1, 100)
                 current_bonus = int(profile.get("額外戰力", 0)) if str(profile.get("額外戰力", "")) != "" else 0
                 
-                if roll <= 20: # 20% 大暴擊
+                if roll <= base_win:
                     gain = random.randint(150, 300)
                     update_profile_field("額外戰力", current_bonus - 50 + gain)
-                    add_feed_interaction(user_name, "自己", "煉丹大成功", f"煉出極品大還丹，戰鬥力暴增 {gain}！")
+                    add_feed_interaction(user_name, "自己", "煉丹大成功", f"運用境界修為煉出極品仙丹，戰力暴增 {gain}！")
                     st.success(f"🚀 煉丹大成功！仙光沖天，戰鬥力暴增 {gain} 點！")
-                elif roll <= 50: # 30% 小賺小賠
+                elif roll <= (100 - base_rug):
                     gain = random.randint(30, 80)
                     update_profile_field("額外戰力", current_bonus - 50 + gain)
                     st.info(f"✨ 煉出普通丹藥，回收 {gain} 點。")
-                else: # 50% 炸爐
+                else:
                     update_profile_field("額外戰力", current_bonus - 50)
                     add_feed_interaction(user_name, "自己", "煉丹炸爐", "煉丹嚴重失誤，50 點戰力化為灰燼...")
                     st.error("💥 炸爐了！爐火失控，50 點戰力直接化為灰燼...")
@@ -318,36 +334,72 @@ with tab0:
                 st.rerun()
 
     with col_play2:
-        st.markdown("### 🥷 宗門暗器 (互相傷害)")
-        st.caption("花費 30 點戰鬥力購買『爆胎圖釘』，隨機讓一位朋友的戰力大跌 50~100 點！")
-        if st.button("📌 撒圖釘 (-30 CP)", use_container_width=True):
-            if cp_value < 30:
-                st.warning("戰鬥力不足，無力購買暗器！")
-            else:
-                friends = [uid for uid in user_map.keys() if uid != st.session_state.user_id]
-                if friends:
-                    target_uid = random.choice(friends)
-                    target_name = user_map[target_uid]
-                    
-                    # 扣自己 30
+        st.markdown("### 🥷 宗門暗算 (圍毆與偷取)")
+        
+        friends_dict = {uid: name for uid, name in user_map.items() if uid != st.session_state.user_id}
+        
+        if not friends_dict:
+            st.info("宗門裡還沒有其他弟子可以互動...")
+        else:
+            # 🎯 指定目標與攻擊方式
+            target_uid = st.selectbox("🎯 選擇暗算目標：", options=list(friends_dict.keys()), format_func=lambda x: friends_dict[x])
+            target_name = friends_dict[target_uid]
+            
+            attack_type = st.radio("🗡️ 攻擊手段：", ["📌 撒圖釘 (扣除對方戰力 / 耗30 CP)", "🧛 吸星大法 (偷取對方戰力給自己 / 耗80 CP)"])
+            stealth_mode = st.radio("🎭 隱藏身分：", ["⚔️ 光明正大 (實名 / 100%發動成功)", "🥷 蒙面黑衣人 (匿名 / 50%機率搞砸)"])
+            
+            cost = 30 if "圖釘" in attack_type else 80
+            
+            if st.button(f"發動攻擊 (-{cost} CP)", type="primary", use_container_width=True):
+                if cp_value < cost:
+                    st.warning(f"戰鬥力不足 {cost}，無力發動！快去跑單！")
+                else:
                     current_bonus = int(profile.get("額外戰力", 0)) if str(profile.get("額外戰力", "")) != "" else 0
-                    update_profile_field("額外戰力", current_bonus - 30)
+                    update_profile_field("額外戰力", current_bonus - cost)
                     
-                    # 隨機扣對方 50~100
-                    dmg = random.randint(50, 100)
-                    update_other_user_bonus_cp(target_uid, -dmg)
+                    is_stealth = "匿名" in stealth_mode
+                    display_sender = "🥷 蒙面黑衣人" if is_stealth else user_name
                     
-                    add_feed_interaction(user_name, target_name, "暗器偷襲", f"在路上撒了把圖釘，害他戰力大跌 {-dmg}！")
-                    st.success(f"😈 偷襲成功！{target_name} 慘遭圖釘爆胎，戰鬥力重挫 {dmg}！")
+                    # 判斷蒙面是否失敗
+                    if is_stealth and random.randint(1, 100) <= 50:
+                        st.error("💥 暗算失敗！你蒙著面踩到自己撒的圖釘，攻擊無效，戰力白白浪費！")
+                        add_feed_interaction(display_sender, target_name, "暗算搞砸", "試圖暗算對方，卻自己踩到水溝跌倒，攻擊失敗！")
+                    else:
+                        # 攻擊發動成功，結算傷害與護盾
+                        defender_record = next((r for r in roster_records if str(r["User_ID"]) == target_uid), None)
+                        defender_stone = int(defender_record["總靈石"]) if defender_record and str(defender_record.get("總靈石","")) != "" else 0
+                        def_tier, _, _, t_def_mult, t_def_rebound, _ = get_realm_tier_and_buffs(defender_stone)
+                        
+                        raw_dmg = random.randint(50, 100) if "圖釘" in attack_type else random.randint(40, 80)
+                        
+                        if atk_tier < def_tier and random.randint(1, 100) <= t_def_rebound:
+                            # 境界反噬
+                            update_profile_field("額外戰力", current_bonus - cost - raw_dmg)
+                            msg = "被大佬的護體罡氣震飛，自損八百！"
+                            st.error(f"😱 攻擊被彈回！對方境界比你高，【護體罡氣】將傷害反彈，你額外重創 {raw_dmg} 點戰力！")
+                            if not is_stealth: # 實名被反彈會廣播
+                                add_feed_interaction(display_sender, target_name, "遭罡氣反噬", msg)
+                        else:
+                            # 成功命中
+                            actual_dmg = int(raw_dmg * t_def_mult)
+                            update_other_user_bonus_cp(target_uid, -actual_dmg)
+                            
+                            if "吸星大法" in attack_type:
+                                update_profile_field("額外戰力", current_bonus - cost + actual_dmg) # 偷給自己
+                                msg = f"使用了吸星大法，從對方身上吸走了 {actual_dmg} 戰力！"
+                                st.success(f"🧛 吸取成功！你從 {target_name} 身上吸走了 {actual_dmg} 點戰力！")
+                                add_feed_interaction(display_sender, target_name, "吸星大法", msg)
+                            else:
+                                msg = f"在路上撒了圖釘，造成對方 {-actual_dmg} 戰力損失！" if t_def_mult == 1.0 else f"撒了圖釘，但對方有境界護體抵消了部分傷害，造成 {-actual_dmg} 傷害！"
+                                st.success(f"😈 偷襲命中！{target_name} 戰鬥力重挫 {actual_dmg}！")
+                                add_feed_interaction(display_sender, target_name, "暗器偷襲", msg)
+                    
                     update_roster_stats()
                     st.rerun()
-                else:
-                    st.warning("宗門裡還沒有其他弟子可以偷襲...")
-                    
+
     st.write("---")
 
     # 個人修仙面板
-    total_stone = int(profile.get('總靈石', 0)) if str(profile.get('總靈石', '')) != '' else 0
     total_hr_val = float(profile.get('總時數', 0.0)) if str(profile.get('總時數', '')) != '' else 0.0
     c_realm, n_realm, n_exp, prog, c_title, c_avatar = get_realm_info(total_stone)
     m_name, m_avatar = get_mount_info(total_hr_val)
@@ -380,7 +432,7 @@ with tab0:
                 sc1.write(f"**{sos_name}** 正在渡劫中...")
                 if sc2.button("🙏 傳靈氣", key=f"qi_{sos_name}"):
                     add_feed_interaction(user_name, sos_name, "傳送靈氣", "助你渡過難關！")
-                    update_other_user_bonus_cp([u for u, n in user_map.items() if n == sos_name][0], 20) # 幫他加20戰力
+                    update_other_user_bonus_cp([u for u, n in user_map.items() if n == sos_name][0], 20)
                     st.balloons()
                     st.success(f"已傳送靈氣給 {sos_name}！")
         
@@ -389,7 +441,7 @@ with tab0:
             if feed_records:
                 st.write("**最新互動紀錄：**")
                 for r in reversed(feed_records[-6:]): 
-                    emoji = "✨" if r['動作'] in ["傳送靈氣", "煉丹大成功"] else "💨"
+                    emoji = "✨" if r['動作'] in ["傳送靈氣", "煉丹大成功", "吸星大法"] else "💨"
                     st.markdown(f"<div class='feed-box'>🕒 {r['時間']}<br><b>{r['發送者']}</b> {emoji} 對 <b>{r['接收者']}</b> 施放了【{r['動作']}】：「{r['訊息']}」</div>", unsafe_allow_html=True)
             else: st.caption("宗門目前一片祥和...")
         except: st.caption("動態牆讀取中...")
@@ -649,7 +701,7 @@ with tab4:
 # ==========================================
 with tab_lb:
     st.header("👑 宗門封神榜")
-    st.markdown("天下風雲出我輩，實力與運氣的頂峰對決！")
+    st.markdown("天下風雲出我輩，實力、運氣與特權的頂峰對決！")
     
     col_t1, col_t2 = st.columns(2)
     with col_t1: time_filter = st.selectbox("📜 選擇時間區間：", ["日榜 (今日)", "週榜 (本週)", "月榜 (本月)", "年榜 (本年度)", "總榜 (歷史巔峰)"])
@@ -670,11 +722,12 @@ with tab_lb:
                 for uid, u_name in user_map.items():
                     user_df = filtered_df[filtered_df['User_ID'] == uid]
                     
-                    # 抓取該玩家身上的「額外戰力」加成
                     u_bonus = 0
+                    u_total_stone_for_tier = 0
                     for r in roster_records:
                         if str(r["User_ID"]) == uid:
                             u_bonus = int(r.get("額外戰力", 0)) if str(r.get("額外戰力", "")) != "" else 0
+                            u_total_stone_for_tier = int(r.get("總靈石", 0)) if str(r.get("總靈石", "")) != "" else 0
                             break
                             
                     if not user_df.empty:
@@ -688,9 +741,10 @@ with tab_lb:
                         
                         if u_inc > 0 or "總榜" in time_filter:
                             avg_w = u_inc / u_hr if u_hr > 0 else 0
+                            _, _, _, _, _, u_cp_mult = get_realm_tier_and_buffs(u_total_stone_for_tier)
+                            u_base_cp = int(((u_inc / 100) + (avg_w * 10) + (u_days * 50) + (u_tribs * 300)) * u_cp_mult)
+                            u_cp = u_base_cp + u_bonus
                             
-                            # 戰力公式加入了 RNG 的額外戰力
-                            u_cp = int((u_inc / 100) + (avg_w * 10) + (u_days * 50) + (u_tribs * 300)) + u_bonus
                             efficiency = u_inc / (u_gas_exp + 1) if u_gas_exp > 0 else u_inc
                             
                             lb_data.append({
