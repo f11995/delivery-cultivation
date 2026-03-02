@@ -265,23 +265,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 🛡️ 護山大陣 (含免登入黑科技)
+# 🛡️ 護山大陣 (純淨穩定版)
 # ==========================================
 if "authenticated" not in st.session_state: st.session_state.authenticated = False
 if "user_id" not in st.session_state: st.session_state.user_id = ""
-
-app_pwd = st.secrets.get("APP_PASSWORD", "未設定")
-invites = st.secrets.get("INVITES", {})
-
-# 🔑 黑科技：檢查網址中是否已經有儲存的密令
-if not st.session_state.authenticated:
-    url_code = st.query_params.get("token", "")
-    if url_code == app_pwd:
-        st.session_state.authenticated = True
-        st.session_state.user_id = "yu_master"
-    elif url_code in invites:
-        st.session_state.authenticated = True
-        st.session_state.user_id = invites[url_code]
 
 if not st.session_state.authenticated:
     st.markdown("<br><br><h1 style='text-align: center; color: #FFD700;'>☁️ 雲端外送宗門</h1>", unsafe_allow_html=True)
@@ -289,19 +276,15 @@ if not st.session_state.authenticated:
     with col_p2:
         pwd_input = st.text_input("輸入接引密令：", type="password")
         if st.button("🚪 開啟結界", type="primary", use_container_width=True):
+            app_pwd = st.secrets.get("APP_PASSWORD", "未設定")
+            invites = st.secrets.get("INVITES", {})
             if pwd_input == app_pwd:
-                st.query_params["token"] = pwd_input # 寫入網址記憶
-                st.session_state.authenticated = True
-                st.session_state.user_id = "yu_master"
+                st.session_state.authenticated, st.session_state.user_id = True, "yu_master"
                 st.rerun()
             elif pwd_input in invites:
-                st.query_params["token"] = pwd_input # 寫入網址記憶
-                st.session_state.authenticated = True
-                st.session_state.user_id = invites[pwd_input]
+                st.session_state.authenticated, st.session_state.user_id = True, invites[pwd_input]
                 st.rerun()
             else: st.error("❌ 密令錯誤！")
-    
-    st.info("💡 **免重複登入密技**：在手機瀏覽器輸入密碼登入後，點擊瀏覽器的「分享」➡️「加入主畫面」。以後從主畫面點開 App 就不需要再輸入密碼了！")
     st.stop()
 
 # 載入資料
@@ -799,7 +782,7 @@ with tab_lb:
                         u_days = user_df[user_df['類型'] == '收入']['日期'].nunique()
                         u_tribs = user_df[user_df['天劫'] == 'True'].shape[0] if '天劫' in user_df.columns else 0
                         
-                        u_exp_df = user_df[(user_df['類型'] == '開 কয়') & (user_df['項目'].isin(['機車油錢', '機車保養']))]
+                        u_exp_df = user_df[(user_df['類型'] == '開銷') & (user_df['項目'].isin(['機車油錢', '機車保養']))]
                         u_gas_exp = u_exp_df['金額'].sum() if not u_exp_df.empty else 0
                         
                         if u_inc > 0 or "總榜" in time_filter:
