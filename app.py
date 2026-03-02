@@ -165,7 +165,9 @@ def update_other_user_bonus_cp(target_uid, amount_change):
             break
 
 def get_realm_tier_and_buffs(total_exp):
-    current_realm, _, _ = get_realm_info(total_exp)
+    # 💡 這裡補齊了 6 個接收位，完美接住所有靈氣
+    current_realm, _, _, _, _, _ = get_realm_info(total_exp)
+    
     if "凡人" in current_realm or "煉氣" in current_realm: return 0, 0, 0, 1.0, 0, 1.0
     elif "築基" in current_realm: return 1, 5, 5, 0.9, 5, 1.05
     elif "結丹" in current_realm: return 2, 10, 10, 0.8, 10, 1.1
