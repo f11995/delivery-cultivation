@@ -85,7 +85,7 @@ def load_data(user_id):
 def save_data(date_val, record_type, item, amount, hours, note, tribulation):
     with st.spinner("⏳ 正在將玉簡傳送至雲端藏寶閣..."):
         ws = get_user_records_ws(st.session_state.user_id)
-        # 🛡️ 絕對淨化：強制剝離所有前端框架的型態
+        # 🛡️ 絕對淨化防禦：確保新增紀錄時，所有欄位都是純 Python 基本型態
         ws.append_row([
             str(date_val), 
             str(record_type), 
@@ -95,8 +95,8 @@ def save_data(date_val, record_type, item, amount, hours, note, tribulation):
             str(note), 
             str(tribulation)
         ])
-        st.cache_data.clear()
-        update_roster_stats()
+        st.cache_data.clear() # 清除快取強制重讀
+        update_roster_stats() # 更新排行榜數據
 
 def delete_data(indices_to_drop):
     with st.spinner("⏳ 正在從雲端抹除因果..."):
@@ -130,7 +130,7 @@ def update_profile_field(col_name, value):
 
 def update_roster_stats():
     df = load_data(st.session_state.user_id)
-    # 🛡️ 絕對淨化：在從 Pandas 取出數據的瞬間，直接套上 int() 和 float() 護盾
+    # 🛡️ 絕對淨化防禦：強制在從 Pandas 取出數據的瞬間轉型
     t_inc = int(df[df['類型'] == '收入']['金額'].sum()) if not df.empty else 0
     t_hr = float(df[df['類型'] == '收入']['上線時數'].sum()) if not df.empty else 0.0
     t_days = int(df[df['類型'] == '收入']['日期'].nunique()) if not df.empty else 0
@@ -144,10 +144,8 @@ def update_roster_stats():
     ws = get_roster_ws()
     _, row_idx = get_user_profile()
     
-    # 組合純淨陣列，確保沒有 numpy 物件混入
+    # 組合純淨陣列
     pure_values = [[int(t_inc), float(t_hr), int(t_days), int(t_tribs), int(cp), str(realm), str(mount)]]
-    
-    # 使用安全的 kwargs 更新方式
     ws.update(values=pure_values, range_name=f"C{row_idx}:I{row_idx}")
 
 # ==========================================
@@ -206,8 +204,9 @@ if not st.session_state.authenticated:
     
     col_p1, col_p2, col_p3 = st.columns([1, 2, 1])
     with col_p2:
-        pwd_input = st.text_input("輸入密令：", type="password", placeholder="邀請碼")
+        pwd_input = st.text_input("輸入密令：", type="password", placeholder="請輸入邀請碼...")
         if st.button("🚪 開啟結界", type="primary", use_container_width=True):
+            # 🛡️ 資安隱形防護：從雲端保險箱讀取密碼，程式碼內不留痕跡
             app_pwd = st.secrets.get("APP_PASSWORD", "未設定密碼")
             invites = st.secrets.get("INVITES", {})
             
@@ -259,11 +258,16 @@ with tab0:
     if df.empty:
         st.info(f"📜 仙途尚未展開... {user_name}道友，請至「每日輸入」完成你的第一次歷練！")
     else:
-        st.markdown(f"<p class='cp-text'>{int(profile['戰鬥力']):,}</p>", unsafe_allow_html=True)
+        # 防呆機制，避免戰鬥力或靈石為空值出錯
+        cp_value = int(profile.get('戰鬥力', 0)) if profile.get('戰鬥力', '') != '' else 0
+        total_stone = int(profile.get('總靈石', 0)) if profile.get('總靈石', '') != '' else 0
+        total_hr_val = float(profile.get('總時數', 0.0)) if profile.get('總時數', '') != '' else 0.0
+        
+        st.markdown(f"<p class='cp-text'>{cp_value:,}</p>", unsafe_allow_html=True)
         st.markdown("<p class='cp-label'>⚔️ 綜合戰鬥力 (CP) ⚔️</p>", unsafe_allow_html=True)
         
-        c_realm, n_realm, n_exp, prog, c_title, c_avatar = get_realm_info(int(profile["總靈石"]))
-        m_name, m_avatar = get_mount_info(float(profile["總時數"]))
+        c_realm, n_realm, n_exp, prog, c_title, c_avatar = get_realm_info(total_stone)
+        m_name, m_avatar = get_mount_info(total_hr_val)
         
         r_col1, r_col2, r_col3 = st.columns([1, 1, 1.5])
         with r_col1:
@@ -276,7 +280,7 @@ with tab0:
             st.markdown("### ⚡ 突破進度 (靈石)")
             st.progress(prog)
             if n_realm != "已達巔峰":
-                st.write(f"**目前：** `{int(profile['總靈石']):,}` / **需求：** `{n_exp:,}`")
+                st.write(f"**目前：** `{total_stone:,}` / **需求：** `{n_exp:,}`")
             else: st.success("🎉 你已達到此界巔峰，傲視群雄！")
                 
         st.write("---")
@@ -317,17 +321,16 @@ with tab0:
                         st.rerun()
                 else: st.button("⏳ 任務尚未達成", disabled=True)
             
-                with bot_c2:
+        with bot_c2:
             st.markdown("### 🥠 天機閣 (每日外送運勢)")
-            if str(profile["運勢日期"]) == today_str:
-                # 💡 這裡把 '今日運勢' 修正為 '運勢'
-                st.success(f"🗓️ 今日卜卦結果：\n\n**{profile['運勢']}**")
+            # 💡 已修復為 "運勢" 欄位，不再出現 KeyError
+            if str(profile.get("運勢日期", "")) == today_str:
+                st.success(f"🗓️ 今日卜卦結果：\n\n**{profile.get('運勢', '尚未卜卦')}**")
             else:
                 st.write("一日一卦，測算今日外送吉凶。")
                 if st.button("🔮 抽取今日運勢", type="primary", use_container_width=True):
                     fortune = random.choice(FORTUNE_POOL)
                     update_profile_field("運勢日期", today_str)
-                    # 💡 這裡也把 '今日運勢' 修正為 '運勢'
                     update_profile_field("運勢", str(fortune))
                     st.snow()
                     st.rerun()
@@ -607,5 +610,3 @@ with tab_lb:
             st.info("宗門尚無弟子參與排名。")
     else:
         st.info("宗門尚無弟子參與排名。")
-
-
