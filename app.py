@@ -517,10 +517,28 @@ with tab2:
             p_prof = p_inc - p_exp
 
             if current_target > 0:
+                st.markdown(f"### 🚀 目標進度：`${int(t_inc):,}` / `${current_target:,}`")
                 st.progress(min(t_inc / current_target, 1.0))
                 remaining_amount = current_target - t_inc
-                if remaining_amount > 0: st.info(f"🏃‍♂️ 距離目標還差 **${int(remaining_amount):,}** 元。")
-                else: st.success(f"🎉 超標賺了 **${int(-remaining_amount):,}** 元！")
+                
+                # 🌟 把詳細的剩餘天數與平均計算加回來了！
+                if remaining_amount > 0:
+                    today, s_year, s_month = date.today(), int(selected_month.split('-')[0]), int(selected_month.split('-')[1])
+                    last_day_of_month = calendar.monthrange(s_year, s_month)[1]
+                    
+                    if today.year == s_year and today.month == s_month: 
+                        days_left = last_day_of_month - today.day + 1
+                    elif date(s_year, s_month, last_day_of_month) > today: 
+                        days_left = last_day_of_month 
+                    else: 
+                        days_left = 0 
+                    
+                    if days_left > 0: 
+                        st.info(f"🏃‍♂️ 距離目標還差 **${int(remaining_amount):,}** 元。本月還剩 **{days_left}** 天，每天平均需賺 **${int(remaining_amount/days_left):,}**！")
+                    else:
+                        st.warning(f"⚠️ 這個月已經結束囉，距離目標差了 **${int(remaining_amount):,}** 元，下個月繼續加油！")
+                else: 
+                    st.success(f"🎉 已經達成設定的目標，超標賺了 **${int(-remaining_amount):,}** 元！")
             
             st.write("")
             m1, m2, m3 = st.columns(3)
@@ -543,6 +561,8 @@ with tab2:
                 if not inc_df.empty:
                     pie_data = inc_df.groupby('項目')['金額'].sum().reset_index()
                     st.plotly_chart(px.pie(pie_data, values='金額', names='項目', hole=0.4, color='項目', color_discrete_map=CUSTOM_COLORS), use_container_width=True)
+    else: 
+        st.info("目前尚無資料，請先至「每日輸入」新增紀錄。")
 
 with tab3:
     if not df.empty:
