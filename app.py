@@ -317,16 +317,18 @@ with tab0:
                         st.rerun()
                 else: st.button("⏳ 任務尚未達成", disabled=True)
             
-        with bot_c2:
+                with bot_c2:
             st.markdown("### 🥠 天機閣 (每日外送運勢)")
             if str(profile["運勢日期"]) == today_str:
-                st.success(f"🗓️ 今日卜卦結果：\n\n**{profile['今日運勢']}**")
+                # 💡 這裡把 '今日運勢' 修正為 '運勢'
+                st.success(f"🗓️ 今日卜卦結果：\n\n**{profile['運勢']}**")
             else:
                 st.write("一日一卦，測算今日外送吉凶。")
                 if st.button("🔮 抽取今日運勢", type="primary", use_container_width=True):
                     fortune = random.choice(FORTUNE_POOL)
                     update_profile_field("運勢日期", today_str)
-                    update_profile_field("今日運勢", str(fortune))
+                    # 💡 這裡也把 '今日運勢' 修正為 '運勢'
+                    update_profile_field("運勢", str(fortune))
                     st.snow()
                     st.rerun()
 
