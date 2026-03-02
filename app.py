@@ -54,7 +54,6 @@ def get_roster_ws():
     try: return sheet.worksheet("宗門名冊")
     except:
         ws = sheet.add_worksheet(title="宗門名冊", rows="100", cols="20")
-        # ⚠️ 新增了 額外戰力 欄位
         ws.append_row(["User_ID", "道號", "總靈石", "總時數", "總天數", "天劫數", "戰鬥力", "境界", "座騎", "任務日期", "任務ID", "任務狀態", "運勢日期", "運勢", "目標月份", "目標金額", "額外戰力"])
         return ws
 
@@ -293,35 +292,35 @@ with tab0:
     col_play1, col_play2 = st.columns(2)
     
     with col_play1:
-        st.markdown("### 🎲 迷因煉丹爐 (高風險 RNG)")
-        st.caption("投入 50 點戰鬥力，有 20% 機率暴漲，50% 機率炸爐 (Rug Pull歸零)！如同炒土狗幣！")
-        if st.button("🔥 投入 50 CP 煉丹", use_container_width=True):
+        st.markdown("### 🎲 激進煉丹爐 (高風險/高報酬)")
+        st.caption("投入 50 點戰鬥力，有 20% 機率煉出『極品仙丹』戰力暴漲，但有 50% 機率『炸爐』血本無歸！")
+        if st.button("🔥 耗費 50 CP 煉丹", use_container_width=True):
             if cp_value < 50:
                 st.warning("戰鬥力不足，無法煉丹！快去跑單！")
             else:
                 roll = random.randint(1, 100)
                 current_bonus = int(profile.get("額外戰力", 0)) if str(profile.get("額外戰力", "")) != "" else 0
                 
-                if roll <= 20: # 20% 百倍幣
+                if roll <= 20: # 20% 大暴擊
                     gain = random.randint(150, 300)
                     update_profile_field("額外戰力", current_bonus - 50 + gain)
-                    add_feed_interaction(user_name, "自己", "煉丹大成功", f"宛如買到百倍幣，戰鬥力暴增 {gain}！")
-                    st.success(f"🚀 煉丹大成功！猶如買到百倍幣，戰鬥力暴增 {gain} 點！")
+                    add_feed_interaction(user_name, "自己", "煉丹大成功", f"煉出極品大還丹，戰鬥力暴增 {gain}！")
+                    st.success(f"🚀 煉丹大成功！仙光沖天，戰鬥力暴增 {gain} 點！")
                 elif roll <= 50: # 30% 小賺小賠
                     gain = random.randint(30, 80)
                     update_profile_field("額外戰力", current_bonus - 50 + gain)
                     st.info(f"✨ 煉出普通丹藥，回收 {gain} 點。")
                 else: # 50% 炸爐
                     update_profile_field("額外戰力", current_bonus - 50)
-                    add_feed_interaction(user_name, "自己", "煉丹炸爐", "慘遭 Rug Pull，50 點血本無歸...")
-                    st.error("💥 炸爐了！宛如被 Rug Pull，50 點血本無歸...")
+                    add_feed_interaction(user_name, "自己", "煉丹炸爐", "煉丹嚴重失誤，50 點戰力化為灰燼...")
+                    st.error("💥 炸爐了！爐火失控，50 點戰力直接化為灰燼...")
                 update_roster_stats()
                 st.rerun()
 
     with col_play2:
-        st.markdown("### 🥷 宗門暗器 (隨機陷害)")
-        st.caption("花費 30 點戰鬥力買『香蕉皮』，隨機讓一位朋友的戰力大跌 50~100 點！")
-        if st.button("🗡️ 丟暗器 (-30 CP)", use_container_width=True):
+        st.markdown("### 🥷 宗門暗器 (互相傷害)")
+        st.caption("花費 30 點戰鬥力購買『爆胎圖釘』，隨機讓一位朋友的戰力大跌 50~100 點！")
+        if st.button("📌 撒圖釘 (-30 CP)", use_container_width=True):
             if cp_value < 30:
                 st.warning("戰鬥力不足，無力購買暗器！")
             else:
@@ -338,8 +337,8 @@ with tab0:
                     dmg = random.randint(50, 100)
                     update_other_user_bonus_cp(target_uid, -dmg)
                     
-                    add_feed_interaction(user_name, target_name, "暗器偷襲", f"丟了個香蕉皮，害他戰力大跌 {-dmg}！")
-                    st.success(f"😈 偷襲成功！{target_name} 踩到香蕉皮，戰鬥力重挫 {dmg}！")
+                    add_feed_interaction(user_name, target_name, "暗器偷襲", f"在路上撒了把圖釘，害他戰力大跌 {-dmg}！")
+                    st.success(f"😈 偷襲成功！{target_name} 慘遭圖釘爆胎，戰鬥力重挫 {dmg}！")
                     update_roster_stats()
                     st.rerun()
                 else:
