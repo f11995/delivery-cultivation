@@ -25,7 +25,6 @@ CULTIVATION_REALMS = [
 ]
 
 FORTUNE_POOL = ["🌟 大吉：天地靈氣匯聚！一路綠燈，瘋狂連單！", "✨ 中吉：運勢平穩。單量穩定，穩紮穩打。", "🌤️ 小吉：略有波折，注意行車安全。", "🍃 平：普普通通的一天。保持平常心。", "💧 末吉：可能會接到大單，但需要爬六樓！", "⚠️ 凶：暗藏殺機！防禦駕駛，避開雷包店家！"]
-QUEST_DATA = {1: {"name": "【爆肝試煉】", "desc": "今日閉關（上線）需滿 8 小時"}, 2: {"name": "【清心寡慾】", "desc": "除了油錢與保養，今日零額外開銷"}, 3: {"name": "【小有斬獲】", "desc": "今日獲取 1500 靈石"}}
 
 # ==========================================
 # 🌐 Google Sheets 雲端資料庫引擎
@@ -165,9 +164,7 @@ def update_other_user_bonus_cp(target_uid, amount_change):
             break
 
 def get_realm_tier_and_buffs(total_exp):
-    # 💡 這裡補齊了 6 個接收位，完美接住所有靈氣
     current_realm, _, _, _, _, _ = get_realm_info(total_exp)
-    
     if "凡人" in current_realm or "煉氣" in current_realm: return 0, 0, 0, 1.0, 0, 1.0
     elif "築基" in current_realm: return 1, 5, 5, 0.9, 5, 1.05
     elif "結丹" in current_realm: return 2, 10, 10, 0.8, 10, 1.1
@@ -233,11 +230,7 @@ st.markdown("""
     .stTabs [data-baseweb="tab-list"] { background-color: transparent; }
     .stTabs [data-baseweb="tab"] { color: #AAAAAA; }
     .stTabs [aria-selected="true"] { color: #FFD700 !important; border-bottom-color: #FFD700 !important; }
-    .cp-text { font-size: 60px; font-weight: 900; color: #FF4B4B; text-align: center; text-shadow: 0 0 20px rgba(255, 75, 75, 0.6); margin: 0; line-height: 1.2; }
-    .cp-label { font-size: 20px; color: #AAAAAA; text-align: center; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
-    .card-box { border: 1px solid #444; border-radius: 10px; padding: 15px; background-color: rgba(30,30,30,0.6); }
-    .boss-box { border: 2px solid #FFD700; border-radius: 10px; padding: 20px; background: linear-gradient(45deg, #4b0000, #1a0000); text-align: center; margin-bottom: 20px; box-shadow: 0 0 15px rgba(255, 215, 0, 0.3); }
-    .vip-box { border: 1px dashed #06C167; padding: 10px; border-radius: 8px; background-color: rgba(6, 193, 103, 0.1); margin-top: 10px; font-size: 14px;}
+    .card-box { border: 1px solid #444; border-radius: 10px; padding: 15px; background-color: rgba(30,30,30,0.6); margin-bottom: 15px; }
     .feed-box { border-left: 4px solid #06C167; padding-left: 10px; margin-bottom: 10px; background-color: rgba(255,255,255,0.05); padding: 10px; border-radius: 5px; font-size: 14px;}
 </style>
 """, unsafe_allow_html=True)
@@ -295,66 +288,111 @@ cp_value = int(profile.get('戰鬥力', 0)) if str(profile.get('戰鬥力', ''))
 total_stone = int(profile.get('總靈石', 0)) if str(profile.get('總靈石', '')) != '' else 0
 
 atk_tier, alc_win_buff, alc_rug_red, def_mult, def_rebound, cp_mult = get_realm_tier_and_buffs(total_stone)
+c_realm, n_realm, n_exp, prog, c_title, c_avatar = get_realm_info(total_stone)
+total_hr_val = float(profile.get('總時數', 0.0)) if str(profile.get('總時數', '')) != '' else 0.0
+m_name, m_avatar = get_mount_info(total_hr_val)
 
 # ==========================================
-# 分頁 0: 🐉 宗門大殿 (指定目標與蒙面暗殺)
+# 分頁 0: 🐉 宗門大殿 (全新乾淨排版)
 # ==========================================
 with tab0:
-    st.markdown(f"<p class='cp-text'>{cp_value:,}</p><p class='cp-label'>⚔️ 綜合戰鬥力 (CP) ⚔️</p>", unsafe_allow_html=True)
+    # 🌟 第一區塊：個人狀態 (頂部統合卡片)
+    st.markdown("### 📜 個人狀態面板")
+    stat_c1, stat_c2, stat_c3 = st.columns([1.2, 1.5, 1.8])
     
+    with stat_c1:
+        st.markdown(f"""
+        <div class='card-box' style='text-align: center;'>
+            <div style='color: #AAAAAA; font-size: 14px; margin-bottom: 5px;'>⚔️ 綜合戰鬥力 (CP)</div>
+            <div style='color: #FF4B4B; font-size: 40px; font-weight: 900; text-shadow: 0 0 10px rgba(255,75,75,0.5);'>{cp_value:,}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with stat_c2:
+        st.markdown(f"""
+        <div class='card-box' style='display: flex; justify-content: space-around; text-align: center; height: 106px;'>
+            <div>
+                <div style='font-size: 30px;'>{c_avatar}</div>
+                <div style='color: #FFD700; font-weight: bold; font-size: 14px;'>{c_realm}</div>
+            </div>
+            <div>
+                <div style='font-size: 30px;'>{m_avatar}</div>
+                <div style='color: #06C167; font-weight: bold; font-size: 14px;'>{m_name}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with stat_c3:
+        st.markdown("<div class='card-box' style='height: 106px;'>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 14px; font-weight: bold; color: #AAAAAA; margin-bottom: 8px;'>⚡ 靈石突破進度</div>", unsafe_allow_html=True)
+        st.progress(prog)
+        st.markdown(f"<div style='font-size: 13px; color: #ccc; margin-top: 5px; text-align: right;'>目前：{total_stone:,} / 需求：{n_exp:,}</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # 👑 VIP 特權摺疊選單 (不佔用版面)
     if atk_tier > 0:
-        st.markdown(f"<div class='vip-box'><b>👑 你的境界特權 (VIP {atk_tier})：</b><br>1. 戰鬥力每日結算 <b>{cp_mult} 倍</b>加成<br>2. 煉丹大賺機率增加 <b>{alc_win_buff}%</b>，炸爐機率減少 <b>{alc_rug_red}%</b><br>3. 遭受暗器偷襲時，傷害減少 <b>{int((1-def_mult)*100)}%</b>，且有 <b>{def_rebound}%</b> 機率反彈傷害給低境界偷襲者！</div>", unsafe_allow_html=True)
+        with st.expander(f"👑 展開你的 VIP {atk_tier} 專屬境界特權"):
+            st.markdown(f"""
+            - 📈 **被動光環**：每日結算總戰鬥力獲得 **{cp_mult} 倍**加成！
+            - 🎲 **煉丹保底**：煉丹大暴擊機率增加 **{alc_win_buff}%**，炸爐機率減少 **{alc_rug_red}%**。
+            - 🛡️ **護體罡氣**：遭暗器偷襲時，傷害自動減免 **{int((1-def_mult)*100)}%**，且有 **{def_rebound}%** 機率反彈傷害給低境界偷襲者！
+            """, unsafe_allow_html=True)
+
+    st.write("---")
+
+    # 🌟 第二區塊：宗門大亂鬥 (並排卡片)
+    st.markdown("### ⚔️ 宗門大亂鬥 (互動區)")
+    play_c1, play_c2 = st.columns(2)
     
-    col_play1, col_play2 = st.columns(2)
-    
-    with col_play1:
+    with play_c1:
+        st.markdown("<div class='card-box'>", unsafe_allow_html=True)
         base_win = 20 + alc_win_buff
         base_rug = max(0, 50 - alc_rug_red)
-        st.markdown("### 🎲 激進煉丹爐")
-        st.caption(f"投入 50 點戰力。你的成功率：{base_win}%，炸爐率：{base_rug}%")
+        st.markdown("#### 🎲 激進煉丹爐")
+        st.caption(f"投入 50 點戰力。成功率：**{base_win}%** / 炸爐率：**{base_rug}%**")
         
         if st.button("🔥 耗費 50 CP 煉丹", use_container_width=True):
             if cp_value < 50: st.warning("戰鬥力不足，無法煉丹！")
             else:
                 roll = random.randint(1, 100)
                 current_bonus = int(profile.get("額外戰力", 0)) if str(profile.get("額外戰力", "")) != "" else 0
-                
                 if roll <= base_win:
                     gain = random.randint(150, 300)
                     update_profile_field("額外戰力", current_bonus - 50 + gain)
                     add_feed_interaction(user_name, "自己", "煉丹大成功", f"運用境界修為煉出極品仙丹，戰力暴增 {gain}！")
-                    st.success(f"🚀 煉丹大成功！仙光沖天，戰鬥力暴增 {gain} 點！")
+                    st.success(f"🚀 大成功！戰鬥力暴增 {gain} 點！")
                 elif roll <= (100 - base_rug):
                     gain = random.randint(30, 80)
                     update_profile_field("額外戰力", current_bonus - 50 + gain)
-                    st.info(f"✨ 煉出普通丹藥，回收 {gain} 點。")
+                    st.info(f"✨ 回收 {gain} 點。")
                 else:
                     update_profile_field("額外戰力", current_bonus - 50)
                     add_feed_interaction(user_name, "自己", "煉丹炸爐", "煉丹嚴重失誤，50 點戰力化為灰燼...")
-                    st.error("💥 炸爐了！爐火失控，50 點戰力直接化為灰燼...")
+                    st.error("💥 炸爐了！50 點戰力化為灰燼...")
                 update_roster_stats()
                 st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    with col_play2:
-        st.markdown("### 🥷 宗門暗算 (圍毆與偷取)")
-        
+    with play_c2:
+        st.markdown("<div class='card-box'>", unsafe_allow_html=True)
+        st.markdown("#### 🥷 宗門暗算")
         friends_dict = {uid: name for uid, name in user_map.items() if uid != st.session_state.user_id}
         
         if not friends_dict:
-            st.info("宗門裡還沒有其他弟子可以互動...")
+            st.info("宗門裡還沒有其他弟子...")
         else:
-            # 🎯 指定目標與攻擊方式
-            target_uid = st.selectbox("🎯 選擇暗算目標：", options=list(friends_dict.keys()), format_func=lambda x: friends_dict[x])
+            # 緊湊排版
+            target_uid = st.selectbox("選擇目標", options=list(friends_dict.keys()), format_func=lambda x: friends_dict[x], label_visibility="collapsed")
             target_name = friends_dict[target_uid]
             
-            attack_type = st.radio("🗡️ 攻擊手段：", ["📌 撒圖釘 (扣除對方戰力 / 耗30 CP)", "🧛 吸星大法 (偷取對方戰力給自己 / 耗80 CP)"])
-            stealth_mode = st.radio("🎭 隱藏身分：", ["⚔️ 光明正大 (實名 / 100%發動成功)", "🥷 蒙面黑衣人 (匿名 / 50%機率搞砸)"])
+            opt_c1, opt_c2 = st.columns(2)
+            with opt_c1: attack_type = st.radio("手段", ["📌 圖釘(-30 CP)", "🧛 吸星(-80 CP)"], label_visibility="collapsed")
+            with opt_c2: stealth_mode = st.radio("身分", ["⚔️ 實名(100%成功)", "🥷 匿名(50%搞砸)"], label_visibility="collapsed")
             
             cost = 30 if "圖釘" in attack_type else 80
             
-            if st.button(f"發動攻擊 (-{cost} CP)", type="primary", use_container_width=True):
-                if cp_value < cost:
-                    st.warning(f"戰鬥力不足 {cost}，無力發動！快去跑單！")
+            if st.button(f"🗡️ 發動攻擊 (-{cost} CP)", type="primary", use_container_width=True):
+                if cp_value < cost: st.warning("戰鬥力不足！")
                 else:
                     current_bonus = int(profile.get("額外戰力", 0)) if str(profile.get("額外戰力", "")) != "" else 0
                     update_profile_field("額外戰力", current_bonus - cost)
@@ -362,12 +400,10 @@ with tab0:
                     is_stealth = "匿名" in stealth_mode
                     display_sender = "🥷 蒙面黑衣人" if is_stealth else user_name
                     
-                    # 判斷蒙面是否失敗
                     if is_stealth and random.randint(1, 100) <= 50:
-                        st.error("💥 暗算失敗！你蒙著面踩到自己撒的圖釘，攻擊無效，戰力白白浪費！")
-                        add_feed_interaction(display_sender, target_name, "暗算搞砸", "試圖暗算對方，卻自己踩到水溝跌倒，攻擊失敗！")
+                        st.error("💥 暗算失敗！你蒙面踩到自己撒的圖釘，戰力白白浪費！")
+                        add_feed_interaction(display_sender, target_name, "暗算搞砸", "試圖暗算對方，卻自己踩空跌倒！")
                     else:
-                        # 攻擊發動成功，結算傷害與護盾
                         defender_record = next((r for r in roster_records if str(r["User_ID"]) == target_uid), None)
                         defender_stone = int(defender_record["總靈石"]) if defender_record and str(defender_record.get("總靈石","")) != "" else 0
                         def_tier, _, _, t_def_mult, t_def_rebound, _ = get_realm_tier_and_buffs(defender_stone)
@@ -375,52 +411,33 @@ with tab0:
                         raw_dmg = random.randint(50, 100) if "圖釘" in attack_type else random.randint(40, 80)
                         
                         if atk_tier < def_tier and random.randint(1, 100) <= t_def_rebound:
-                            # 境界反噬
                             update_profile_field("額外戰力", current_bonus - cost - raw_dmg)
-                            msg = "被大佬的護體罡氣震飛，自損八百！"
-                            st.error(f"😱 攻擊被彈回！對方境界比你高，【護體罡氣】將傷害反彈，你額外重創 {raw_dmg} 點戰力！")
-                            if not is_stealth: # 實名被反彈會廣播
-                                add_feed_interaction(display_sender, target_name, "遭罡氣反噬", msg)
+                            st.error(f"😱 攻擊被彈回！對方【護體罡氣】將傷害反彈，你額外重創 {raw_dmg} 點戰力！")
+                            if not is_stealth: add_feed_interaction(display_sender, target_name, "遭罡氣反噬", "被大佬的護體罡氣震飛，自損八百！")
                         else:
-                            # 成功命中
                             actual_dmg = int(raw_dmg * t_def_mult)
                             update_other_user_bonus_cp(target_uid, -actual_dmg)
                             
-                            if "吸星大法" in attack_type:
-                                update_profile_field("額外戰力", current_bonus - cost + actual_dmg) # 偷給自己
-                                msg = f"使用了吸星大法，從對方身上吸走了 {actual_dmg} 戰力！"
+                            if "吸星" in attack_type:
+                                update_profile_field("額外戰力", current_bonus - cost + actual_dmg)
                                 st.success(f"🧛 吸取成功！你從 {target_name} 身上吸走了 {actual_dmg} 點戰力！")
-                                add_feed_interaction(display_sender, target_name, "吸星大法", msg)
+                                add_feed_interaction(display_sender, target_name, "吸星大法", f"吸走了 {actual_dmg} 戰力！")
                             else:
-                                msg = f"在路上撒了圖釘，造成對方 {-actual_dmg} 戰力損失！" if t_def_mult == 1.0 else f"撒了圖釘，但對方有境界護體抵消了部分傷害，造成 {-actual_dmg} 傷害！"
+                                msg = f"撒圖釘造成對方 {-actual_dmg} 損失！" if t_def_mult == 1.0 else f"撒圖釘，但對方護體抵消了部分傷害，造成 {-actual_dmg} 損失！"
                                 st.success(f"😈 偷襲命中！{target_name} 戰鬥力重挫 {actual_dmg}！")
                                 add_feed_interaction(display_sender, target_name, "暗器偷襲", msg)
-                    
                     update_roster_stats()
                     st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.write("---")
 
-    # 個人修仙面板
-    total_hr_val = float(profile.get('總時數', 0.0)) if str(profile.get('總時數', '')) != '' else 0.0
-    c_realm, n_realm, n_exp, prog, c_title, c_avatar = get_realm_info(total_stone)
-    m_name, m_avatar = get_mount_info(total_hr_val)
-    
-    r_col1, r_col2, r_col3 = st.columns([1, 1, 1.5])
-    with r_col1: st.markdown(f"<div class='card-box' style='text-align: center;'><div style='font-size: 60px;'>{c_avatar}</div><h5 style='color: #AAAAAA;'>當前境界</h5><h3 style='color: #FFD700;'>{c_realm}</h3></div>", unsafe_allow_html=True)
-    with r_col2: st.markdown(f"<div class='card-box' style='text-align: center;'><div style='font-size: 60px;'>{m_avatar}</div><h5 style='color: #AAAAAA;'>專屬座騎</h5><h3 style='color: #06C167;'>{m_name}</h3></div>", unsafe_allow_html=True)
-    with r_col3:
-        st.markdown("### ⚡ 突破進度 (靈石)")
-        st.progress(prog)
-        st.write(f"**目前：** `{total_stone:,}` / **需求：** `{n_exp:,}`")
-            
-    st.write("---")
-    
-    # 🆘 動態牆
+    # 🌟 第三區塊：動態牆與運勢
     feed_col, daily_col = st.columns([1.5, 1])
     
     with feed_col:
-        st.markdown("### 📢 宗門廣播與動態")
+        st.markdown("### 📢 宗門動態牆")
+        st.markdown("<div class='card-box'>", unsafe_allow_html=True)
         
         sos_users = []
         if not big_df.empty:
@@ -428,30 +445,31 @@ with tab0:
             sos_users = today_tribs['道號'].unique().tolist()
             
         if sos_users:
-            st.warning("⚠️ 警報！以下道友今日遭遇天劫 (奧客/雷雨/爆胎)！")
+            st.warning("⚠️ 以下道友今日遭遇天劫！")
             for sos_name in sos_users:
-                sc1, sc2, sc3 = st.columns([2, 1, 1])
+                sc1, sc2 = st.columns([2, 1])
                 sc1.write(f"**{sos_name}** 正在渡劫中...")
                 if sc2.button("🙏 傳靈氣", key=f"qi_{sos_name}"):
                     add_feed_interaction(user_name, sos_name, "傳送靈氣", "助你渡過難關！")
                     update_other_user_bonus_cp([u for u, n in user_map.items() if n == sos_name][0], 20)
                     st.balloons()
-                    st.success(f"已傳送靈氣給 {sos_name}！")
+                    st.success(f"已傳送靈氣！")
         
         try:
             feed_records = get_feed_ws().get_all_records()
             if feed_records:
-                st.write("**最新互動紀錄：**")
-                for r in reversed(feed_records[-6:]): 
+                for r in reversed(feed_records[-5:]): 
                     emoji = "✨" if r['動作'] in ["傳送靈氣", "煉丹大成功", "吸星大法"] else "💨"
-                    st.markdown(f"<div class='feed-box'>🕒 {r['時間']}<br><b>{r['發送者']}</b> {emoji} 對 <b>{r['接收者']}</b> 施放了【{r['動作']}】：「{r['訊息']}」</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='feed-box'><span style='color:#AAA; font-size: 12px;'>🕒 {r['時間']}</span><br><b>{r['發送者']}</b> {emoji} 對 <b>{r['接收者']}</b> 施放了【{r['動作']}】：「{r['訊息']}」</div>", unsafe_allow_html=True)
             else: st.caption("宗門目前一片祥和...")
         except: st.caption("動態牆讀取中...")
+        st.markdown("</div>", unsafe_allow_html=True)
 
     with daily_col:
         st.markdown("### 🥠 天機閣 (運勢)")
+        st.markdown("<div class='card-box' style='text-align: center;'>", unsafe_allow_html=True)
         if str(profile.get("運勢日期", "")) == str(today):
-            st.success(f"🗓️ 今日卜卦結果：\n\n**{profile.get('運勢', '尚未卜卦')}**")
+            st.success(f"**{profile.get('運勢', '尚未卜卦')}**")
         else:
             if st.button("🔮 抽取今日運勢", type="primary", use_container_width=True):
                 fortune = random.choice(FORTUNE_POOL)
@@ -459,6 +477,7 @@ with tab0:
                 update_profile_field("運勢", str(fortune))
                 st.snow()
                 st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # ==========================================
 # 分頁 1: 每日輸入
