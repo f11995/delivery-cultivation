@@ -12,7 +12,7 @@ from google.oauth2.service_account import Credentials
 # ==========================================
 # ⚙️ 系統常數與修仙設定
 # ==========================================
-CUSTOM_COLORS = {"Uber Eats": "#06C167", "Foodpanda": "#FF2B85", "其他獎金": "#F6C143", "休假": "#B0B0B0"}
+CUSTOM_COLORS = {"Uber Eats": "#06C167", "Foodpanda": "#FF2B85", "其他獎金": "#F6C143", "休假": "#B0B0B0", "機車油錢": "#FF9900", "機車保養": "#FF4444"}
 WEEKDAY_MAP = {0: '星期一', 1: '星期二', 2: '星期三', 3: '星期四', 4: '星期五', 5: '星期六', 6: '星期日'}
 
 CULTIVATION_REALMS = [
@@ -48,13 +48,12 @@ def get_sheet():
     try:
         return client.open_by_url(st.secrets["SHEET_URL"])
     except Exception as e:
-        st.error(f"❌ 找不到試算表！請確認網址正確，且已共用給機器人信箱：{e}")
+        st.error(f"❌ 找不到試算表！請確認網址正確：{e}")
         st.stop()
 
 def get_roster_ws():
     sheet = get_sheet()
-    try:
-        return sheet.worksheet("宗門名冊")
+    try: return sheet.worksheet("宗門名冊")
     except:
         ws = sheet.add_worksheet(title="宗門名冊", rows="100", cols="20")
         ws.append_row(["User_ID", "道號", "總靈石", "總時數", "總天數", "天劫數", "戰鬥力", "境界", "座騎", "任務日期", "任務ID", "任務狀態", "運勢日期", "運勢", "目標月份", "目標金額"])
@@ -63,12 +62,44 @@ def get_roster_ws():
 def get_user_records_ws(user_id):
     sheet = get_sheet()
     ws_name = f"records_{user_id}"
-    try:
-        return sheet.worksheet(ws_name)
+    try: return sheet.worksheet(ws_name)
     except:
         ws = sheet.add_worksheet(title=ws_name, rows="1000", cols="10")
         ws.append_row(["日期", "類型", "項目", "金額", "上線時數", "備註", "天劫"])
         return ws
+
+def get_feed_ws():
+    sheet = get_sheet()
+    try: return sheet.worksheet("宗門動態")
+    except:
+        ws = sheet.add_worksheet(title="宗門動態", rows="500", cols="5")
+        ws.append_row(["時間", "發送者", "接收者", "動作", "訊息"])
+        return ws
+
+# --- 快取讀取所有資料 (降低 API 請求次數) ---
+@st.cache_data(ttl=60, show_spinner=False)
+def get_all_sect_data():
+    sheet = get_sheet()
+    roster_records = get_roster_ws().get_all_records()
+    user_map = {str(r["User_ID"]): str(r.get("道號", "無名修士")) for r in roster_records if str(r.get("道號", "")) != ""}
+    
+    all_data = []
+    for ws in sheet.worksheets():
+        if ws.title.startswith("records_"):
+            uid = ws.title.replace("records_", "")
+            if uid in user_map:
+                records = ws.get_all_records()
+                if records:
+                    df_temp = pd.DataFrame(records)
+                    df_temp['User_ID'] = uid
+                    df_temp['道號'] = user_map[uid]
+                    all_data.append(df_temp)
+    
+    big_df = pd.concat(all_data, ignore_index=True) if all_data else pd.DataFrame()
+    if not big_df.empty:
+        big_df['日期'] = pd.to_datetime(big_df['日期']).dt.date
+    
+    return user_map, big_df, roster_records
 
 # --- 資料讀寫邏輯 ---
 @st.cache_data(ttl=30, show_spinner=False)
@@ -85,34 +116,28 @@ def load_data(user_id):
 def save_data(date_val, record_type, item, amount, hours, note, tribulation):
     with st.spinner("⏳ 正在將玉簡傳送至雲端藏寶閣..."):
         ws = get_user_records_ws(st.session_state.user_id)
-        # 🛡️ 絕對淨化防禦：確保新增紀錄時，所有欄位都是純 Python 基本型態
-        ws.append_row([
-            str(date_val), 
-            str(record_type), 
-            str(item), 
-            int(amount), 
-            float(hours), 
-            str(note), 
-            str(tribulation)
-        ])
-        st.cache_data.clear() # 清除快取強制重讀
-        update_roster_stats() # 更新排行榜數據
+        ws.append_row([str(date_val), str(record_type), str(item), int(amount), float(hours), str(note), str(tribulation)])
+        st.cache_data.clear()
+        update_roster_stats()
 
 def delete_data(indices_to_drop):
     with st.spinner("⏳ 正在從雲端抹除因果..."):
         ws = get_user_records_ws(st.session_state.user_id)
-        for idx in sorted(indices_to_drop, reverse=True):
-            ws.delete_rows(idx + 2)
+        for idx in sorted(indices_to_drop, reverse=True): ws.delete_rows(idx + 2)
         st.cache_data.clear()
         update_roster_stats()
 
-# --- 宗門名冊 (使用者檔案) 邏輯 ---
+def add_feed_interaction(sender_name, receiver_name, action, message):
+    ws = get_feed_ws()
+    ws.append_row([str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")), str(sender_name), str(receiver_name), str(action), str(message)])
+    st.cache_data.clear()
+
+# --- 宗門名冊邏輯 ---
 def get_user_profile():
     ws = get_roster_ws()
     records = ws.get_all_records()
     for i, r in enumerate(records):
         if str(r["User_ID"]) == st.session_state.user_id: return r, i + 2
-    # 若為新弟子，初始化資料
     new_row = [st.session_state.user_id, "", 0, 0, 0, 0, 0, "凡人武夫", "凡鐵飛劍", "", 0, 0, "", "", "", 0]
     ws.append_row(new_row)
     return dict(zip(["User_ID", "道號", "總靈石", "總時數", "總天數", "天劫數", "戰鬥力", "境界", "座騎", "任務日期", "任務ID", "任務狀態", "運勢日期", "運勢", "目標月份", "目標金額"], new_row)), len(records) + 2
@@ -122,15 +147,11 @@ def update_profile_field(col_name, value):
     headers = ws.row_values(1)
     col_idx = headers.index(col_name) + 1
     _, row_idx = get_user_profile()
-    # 🛡️ 淨化傳入數值
-    if isinstance(value, (int, float)):
-        ws.update_cell(row_idx, col_idx, float(value) if isinstance(value, float) else int(value))
-    else:
-        ws.update_cell(row_idx, col_idx, str(value))
+    if isinstance(value, (int, float)): ws.update_cell(row_idx, col_idx, float(value) if isinstance(value, float) else int(value))
+    else: ws.update_cell(row_idx, col_idx, str(value))
 
 def update_roster_stats():
     df = load_data(st.session_state.user_id)
-    # 🛡️ 絕對淨化防禦：強制在從 Pandas 取出數據的瞬間轉型
     t_inc = int(df[df['類型'] == '收入']['金額'].sum()) if not df.empty else 0
     t_hr = float(df[df['類型'] == '收入']['上線時數'].sum()) if not df.empty else 0.0
     t_days = int(df[df['類型'] == '收入']['日期'].nunique()) if not df.empty else 0
@@ -143,10 +164,7 @@ def update_roster_stats():
     
     ws = get_roster_ws()
     _, row_idx = get_user_profile()
-    
-    # 組合純淨陣列
-    pure_values = [[int(t_inc), float(t_hr), int(t_days), int(t_tribs), int(cp), str(realm), str(mount)]]
-    ws.update(values=pure_values, range_name=f"C{row_idx}:I{row_idx}")
+    ws.update(values=[[int(t_inc), float(t_hr), int(t_days), int(t_tribs), int(cp), str(realm), str(mount)]], range_name=f"C{row_idx}:I{row_idx}")
 
 # ==========================================
 # 輔助計算函數
@@ -158,10 +176,8 @@ def get_realm_info(total_exp):
         if total_exp >= CULTIVATION_REALMS[i][0]:
             current_realm, current_title, current_avatar = CULTIVATION_REALMS[i][1], CULTIVATION_REALMS[i][2], CULTIVATION_REALMS[i][3]
             prev_exp = CULTIVATION_REALMS[i][0]
-            if i + 1 < len(CULTIVATION_REALMS):
-                next_realm, next_exp = CULTIVATION_REALMS[i+1][1], CULTIVATION_REALMS[i+1][0]
-            else:
-                next_realm, next_exp = "已達巔峰", total_exp
+            if i + 1 < len(CULTIVATION_REALMS): next_realm, next_exp = CULTIVATION_REALMS[i+1][1], CULTIVATION_REALMS[i+1][0]
+            else: next_realm, next_exp = "已達巔峰", total_exp
         else: break
     progress = 1.0 if next_realm == "已達巔峰" else min((total_exp - prev_exp) / (next_exp - prev_exp), 1.0)
     return current_realm, next_realm, next_exp, progress, current_title, current_avatar
@@ -171,10 +187,6 @@ def get_mount_info(total_hours):
     elif total_hours >= 500: return "紫電魔豹", "🐆"
     elif total_hours >= 100: return "疾風靈鶴", "🦅"
     else: return "凡鐵飛劍", "🗡️"
-
-def get_prev_month_str(month_str):
-    y, m = map(int, month_str.split('-'))
-    return f"{y-1}-12" if m == 1 else f"{y}-{m-1:02d}"
 
 def change_date(new_date): st.session_state.selected_date = new_date
 
@@ -189,55 +201,47 @@ st.markdown("""
     .cp-text { font-size: 60px; font-weight: 900; color: #FF4B4B; text-align: center; text-shadow: 0 0 20px rgba(255, 75, 75, 0.6); margin: 0; line-height: 1.2; }
     .cp-label { font-size: 20px; color: #AAAAAA; text-align: center; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
     .card-box { border: 1px solid #444; border-radius: 10px; padding: 15px; background-color: rgba(30,30,30,0.6); }
+    .boss-box { border: 2px solid #FFD700; border-radius: 10px; padding: 20px; background: linear-gradient(45deg, #4b0000, #1a0000); text-align: center; margin-bottom: 20px; box-shadow: 0 0 15px rgba(255, 215, 0, 0.3); }
+    .feed-box { border-left: 4px solid #06C167; padding-left: 10px; margin-bottom: 10px; background-color: rgba(255,255,255,0.05); padding: 10px; border-radius: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 🛡️ 護山大陣 (專屬密碼與邀請碼)
+# 🛡️ 護山大陣
 # ==========================================
 if "authenticated" not in st.session_state: st.session_state.authenticated = False
 if "user_id" not in st.session_state: st.session_state.user_id = ""
 
 if not st.session_state.authenticated:
     st.markdown("<br><br><h1 style='text-align: center; color: #FFD700;'>☁️ 雲端外送宗門</h1>", unsafe_allow_html=True)
-    st.markdown("<h4 style='text-align: center; color: #AAAAAA;'>請輸入宗門密令或接引邀請碼</h4><br>", unsafe_allow_html=True)
-    
     col_p1, col_p2, col_p3 = st.columns([1, 2, 1])
     with col_p2:
-        pwd_input = st.text_input("輸入密令：", type="password", placeholder="請輸入邀請碼...")
+        pwd_input = st.text_input("輸入接引密令：", type="password")
         if st.button("🚪 開啟結界", type="primary", use_container_width=True):
-            # 🛡️ 資安隱形防護：從雲端保險箱讀取密碼，程式碼內不留痕跡
-            app_pwd = st.secrets.get("APP_PASSWORD", "未設定密碼")
+            app_pwd = st.secrets.get("APP_PASSWORD", "未設定")
             invites = st.secrets.get("INVITES", {})
-            
-            if pwd_input == app_pwd: # 宗主後台密碼登入
-                st.session_state.authenticated = True
-                st.session_state.user_id = "yu_master"
+            if pwd_input == app_pwd:
+                st.session_state.authenticated, st.session_state.user_id = True, "yu_master"
                 st.rerun()
-            elif pwd_input in invites: # 弟子/宗主代號登入
-                st.session_state.authenticated = True
-                st.session_state.user_id = invites[pwd_input]
+            elif pwd_input in invites:
+                st.session_state.authenticated, st.session_state.user_id = True, invites[pwd_input]
                 st.rerun()
-            else:
-                st.error("❌ 密令錯誤，陣法反噬！")
+            else: st.error("❌ 密令錯誤！")
     st.stop()
 
-# ==========================================
-# 載入雲端個人檔案
-# ==========================================
-with st.spinner("⏳ 正在與 Google 雲端法陣同步中..."):
+# 載入個人與全宗門資料
+with st.spinner("⏳ 正在同步天地靈氣..."):
     profile, _ = get_user_profile()
+    user_map, big_df, roster_records = get_all_sect_data()
 
 if profile["道號"] == "":
-    st.markdown("<br><br><h1 style='text-align: center; color: #FFD700;'>📜 新弟子入宗登記</h1>", unsafe_allow_html=True)
-    col_a, col_b, col_c = st.columns([1, 2, 1])
-    with col_b:
-        new_name = st.text_input("請輸入你的道號 (排行榜顯示名稱)：", placeholder="例如：麻豆車神...")
-        if st.button("🚀 登記入冊", type="primary", use_container_width=True):
-            if new_name.strip():
-                update_profile_field("道號", new_name.strip())
-                st.rerun()
-            else: st.warning("請輸入名稱！")
+    st.markdown("<h1 style='text-align: center; color: #FFD700;'>📜 新弟子入宗登記</h1>", unsafe_allow_html=True)
+    new_name = st.text_input("輸入道號：")
+    if st.button("🚀 登記入冊", type="primary"):
+        if new_name.strip():
+            update_profile_field("道號", new_name.strip())
+            st.cache_data.clear()
+            st.rerun()
     st.stop()
 
 user_name = profile["道號"]
@@ -245,95 +249,108 @@ if "selected_date" not in st.session_state: st.session_state.selected_date = dat
 if "input_key" not in st.session_state: st.session_state.input_key = 0
 if "show_success" not in st.session_state: st.session_state.show_success = False
 
-st.title(f"☁️ 雲端宗門儀表板 - {user_name} 洞府")
-tab0, tab1, tab2, tab3, tab4, tab_lb = st.tabs(["🐉 修仙錄", "📝 每日輸入", "📊 月度報表", "🏆 年度與分析", "⚙️ 管理與備份", "👑 宗門封神榜"])
+st.title(f"☁️ 雲端宗門 - {user_name} 洞府")
+tab0, tab1, tab2, tab3, tab4, tab_lb = st.tabs(["🐉 宗門大殿", "📝 每日輸入", "📊 月度報表", "🏆 年度與分析", "⚙️ 管理與備份", "👑 宗門封神榜"])
 
 df = load_data(st.session_state.user_id)
 k = st.session_state.input_key
+today = date.today()
 
 # ==========================================
-# 分頁 0: 🐉 專屬修仙面板 
+# 分頁 0: 🐉 宗門大殿 (全新多人玩法)
 # ==========================================
 with tab0:
-    if df.empty:
-        st.info(f"📜 仙途尚未展開... {user_name}道友，請至「每日輸入」完成你的第一次歷練！")
+    # 🐉 玩法一：宗門世界 BOSS
+    st.markdown("<div class='boss-box'>", unsafe_allow_html=True)
+    st.markdown("<h2>🐉 宗門世界 BOSS：【暴雨魔蛟】</h2>", unsafe_allow_html=True)
+    
+    start_of_week = today - timedelta(days=today.weekday())
+    week_sect_income = 0
+    if not big_df.empty:
+        week_df = big_df[(big_df['日期'] >= start_of_week) & (big_df['類型'] == '收入')]
+        week_sect_income = week_df['金額'].sum()
+        
+    boss_target = len(user_map) * 15000  # 每多一人，BOSS血量多1萬5
+    boss_progress = min(week_sect_income / boss_target, 1.0)
+    
+    st.write(f"⚔️ **本週全宗門討伐進度：** `${int(week_sect_income):,}` / `${boss_target:,}`")
+    st.progress(boss_progress)
+    
+    if boss_progress >= 1.0:
+        st.success("🎉 暴雨魔蛟已被擊退！全宗門本週戰鬥力獲得 1.2 倍加成！")
+        cp_multiplier = 1.2
     else:
-        # 防呆機制，避免戰鬥力或靈石為空值出錯
-        cp_value = int(profile.get('戰鬥力', 0)) if profile.get('戰鬥力', '') != '' else 0
-        total_stone = int(profile.get('總靈石', 0)) if profile.get('總靈石', '') != '' else 0
-        total_hr_val = float(profile.get('總時數', 0.0)) if profile.get('總時數', '') != '' else 0.0
+        st.caption("💡 提示：本週全體宗門弟子合力賺滿靈石，即可擊退 BOSS，獲取全體戰鬥力 1.2 倍加成！")
+        cp_multiplier = 1.0
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # 個人修仙面板
+    cp_value = int(int(profile.get('戰鬥力', 0)) * cp_multiplier)
+    st.markdown(f"<p class='cp-text'>{cp_value:,}</p><p class='cp-label'>⚔️ 綜合戰鬥力 (CP) ⚔️</p>", unsafe_allow_html=True)
+    
+    total_stone = int(profile.get('總靈石', 0))
+    total_hr_val = float(profile.get('總時數', 0.0))
+    c_realm, n_realm, n_exp, prog, c_title, c_avatar = get_realm_info(total_stone)
+    m_name, m_avatar = get_mount_info(total_hr_val)
+    
+    r_col1, r_col2, r_col3 = st.columns([1, 1, 1.5])
+    with r_col1: st.markdown(f"<div class='card-box' style='text-align: center;'><div style='font-size: 60px;'>{c_avatar}</div><h5 style='color: #AAAAAA;'>當前境界</h5><h3 style='color: #FFD700;'>{c_realm}</h3></div>", unsafe_allow_html=True)
+    with r_col2: st.markdown(f"<div class='card-box' style='text-align: center;'><div style='font-size: 60px;'>{m_avatar}</div><h5 style='color: #AAAAAA;'>專屬座騎</h5><h3 style='color: #06C167;'>{m_name}</h3></div>", unsafe_allow_html=True)
+    with r_col3:
+        st.markdown("### ⚡ 突破進度 (靈石)")
+        st.progress(prog)
+        st.write(f"**目前：** `{total_stone:,}` / **需求：** `{n_exp:,}`")
+            
+    st.write("---")
+    
+    # 🆘 玩法二：宗門動態牆 (靈氣救援 / 嘲諷)
+    feed_col, daily_col = st.columns([1.5, 1])
+    
+    with feed_col:
+        st.markdown("### 📢 宗門動態 (即時互動)")
         
-        st.markdown(f"<p class='cp-text'>{cp_value:,}</p>", unsafe_allow_html=True)
-        st.markdown("<p class='cp-label'>⚔️ 綜合戰鬥力 (CP) ⚔️</p>", unsafe_allow_html=True)
-        
-        c_realm, n_realm, n_exp, prog, c_title, c_avatar = get_realm_info(total_stone)
-        m_name, m_avatar = get_mount_info(total_hr_val)
-        
-        r_col1, r_col2, r_col3 = st.columns([1, 1, 1.5])
-        with r_col1:
-            st.markdown(f"""<div class="card-box" style="text-align: center;"><div style="font-size: 60px;">{c_avatar}</div>
-                <h5 style="color: #AAAAAA;">當前境界</h5><h3 style="color: #FFD700;">{c_realm}</h3></div>""", unsafe_allow_html=True)
-        with r_col2:
-            st.markdown(f"""<div class="card-box" style="text-align: center;"><div style="font-size: 60px;">{m_avatar}</div>
-                <h5 style="color: #AAAAAA;">專屬座騎</h5><h3 style="color: #06C167;">{m_name}</h3></div>""", unsafe_allow_html=True)
-        with r_col3:
-            st.markdown("### ⚡ 突破進度 (靈石)")
-            st.progress(prog)
-            if n_realm != "已達巔峰":
-                st.write(f"**目前：** `{total_stone:,}` / **需求：** `{n_exp:,}`")
-            else: st.success("🎉 你已達到此界巔峰，傲視群雄！")
-                
-        st.write("---")
-        bot_c1, bot_c2 = st.columns(2)
-        
-        with bot_c1:
-            st.markdown("### 📜 宗門懸賞榜 (每日任務)")
-            today_str = str(date.today())
-            if str(profile["任務日期"]) != today_str:
-                profile["任務ID"] = random.randint(1, 3)
-                profile["任務狀態"] = 0
-                update_profile_field("任務日期", today_str)
-                update_profile_field("任務ID", int(profile["任務ID"]))
-                update_profile_field("任務狀態", 0)
+        # 尋找今天遭遇天劫的道友
+        sos_users = []
+        if not big_df.empty:
+            today_tribs = big_df[(big_df['日期'] == today) & (big_df['天劫'] == 'True') & (big_df['User_ID'] != st.session_state.user_id)]
+            sos_users = today_tribs['道號'].unique().tolist()
             
-            q_id = int(profile["任務ID"]) if profile["任務ID"] else 1
-            quest = QUEST_DATA[q_id]
-            st.markdown(f"**今日任務：{quest['name']}**\n\n📝 說明：{quest['desc']}")
-            
-            daily_df = df[df['日期'].dt.date == date.today()]
-            d_inc = daily_df[daily_df['類型'] == '收入']['金額'].sum() if not daily_df.empty else 0
-            d_hr = daily_df[daily_df['類型'] == '收入']['上線時數'].sum() if not daily_df.empty else 0
-            
-            quest_met = False
-            if q_id == 1 and d_hr >= 8: quest_met = True
-            elif q_id == 2 and not daily_df[daily_df['類型'] == '收入'].empty:
-                expenses = daily_df[daily_df['類型'] == '開銷']['項目'].tolist()
-                if all(item in ["機車油錢", "機車保養", "機車貸款"] for item in expenses): quest_met = True
-            elif q_id == 3 and d_inc >= 1500: quest_met = True
-            
-            if str(profile["任務狀態"]) == "1":
-                st.success("✅ 今日懸賞已完成！明日再來接取新任務。")
-            else:
-                if quest_met:
-                    if st.button("🎁 領取懸賞盲盒", type="primary"):
-                        update_profile_field("任務狀態", 1)
-                        st.balloons()
-                        st.rerun()
-                else: st.button("⏳ 任務尚未達成", disabled=True)
-            
-        with bot_c2:
-            st.markdown("### 🥠 天機閣 (每日外送運勢)")
-            # 💡 已修復為 "運勢" 欄位，不再出現 KeyError
-            if str(profile.get("運勢日期", "")) == today_str:
-                st.success(f"🗓️ 今日卜卦結果：\n\n**{profile.get('運勢', '尚未卜卦')}**")
-            else:
-                st.write("一日一卦，測算今日外送吉凶。")
-                if st.button("🔮 抽取今日運勢", type="primary", use_container_width=True):
-                    fortune = random.choice(FORTUNE_POOL)
-                    update_profile_field("運勢日期", today_str)
-                    update_profile_field("運勢", str(fortune))
+        if sos_users:
+            st.warning("⚠️ 警報！以下道友今日遭遇天劫 (奧客/雷雨/爆胎)！")
+            for sos_name in sos_users:
+                sc1, sc2, sc3 = st.columns([2, 1, 1])
+                sc1.write(f"**{sos_name}** 正在渡劫中...")
+                if sc2.button("🙏 傳靈氣", key=f"qi_{sos_name}"):
+                    add_feed_interaction(user_name, sos_name, "傳送靈氣", "助你渡過難關！")
+                    st.balloons()
+                    st.success(f"已傳送靈氣給 {sos_name}！")
+                if sc3.button("😏 嘲諷", key=f"mock_{sos_name}"):
+                    add_feed_interaction(user_name, sos_name, "嘲諷", "笑死，太雷了吧！")
                     st.snow()
-                    st.rerun()
+                    st.success(f"已無情嘲諷 {sos_name}！")
+        
+        # 顯示歷史動態
+        try:
+            feed_records = get_feed_ws().get_all_records()
+            if feed_records:
+                st.write("**最新互動紀錄：**")
+                for r in reversed(feed_records[-5:]): # 只顯示最新 5 筆
+                    emoji = "✨" if r['動作'] == "傳送靈氣" else "💨"
+                    st.markdown(f"<div class='feed-box'>🕒 {r['時間']}<br><b>{r['發送者']}</b> {emoji} 對 <b>{r['接收者']}</b> 施放了【{r['動作']}】：「{r['訊息']}」</div>", unsafe_allow_html=True)
+            else: st.caption("宗門目前一片祥和...")
+        except: st.caption("動態牆讀取中...")
+
+    with daily_col:
+        st.markdown("### 🥠 天機閣 (每日外送運勢)")
+        if str(profile.get("運勢日期", "")) == str(today):
+            st.success(f"🗓️ 今日卜卦結果：\n\n**{profile.get('運勢', '尚未卜卦')}**")
+        else:
+            if st.button("🔮 抽取今日運勢", type="primary", use_container_width=True):
+                fortune = random.choice(FORTUNE_POOL)
+                update_profile_field("運勢日期", str(today))
+                update_profile_field("運勢", str(fortune))
+                st.snow()
+                st.rerun()
 
 # ==========================================
 # 分頁 1: 每日輸入
@@ -458,7 +475,6 @@ with tab1:
             if not daily_df.empty:
                 st.write("---")
                 st.subheader("🛠️ 刪除今日明細")
-                st.caption("由於雲端連線限制，目前若填錯請勾選後刪除，再重新輸入即可。")
                 edit_df = daily_df.copy()
                 edit_df['日期'] = edit_df['日期'].dt.strftime('%Y-%m-%d')
                 edit_df.insert(0, "刪除", False)
@@ -479,7 +495,8 @@ with tab2:
         mc1, mc2 = st.columns([1, 1])
         with mc1: selected_month = st.selectbox("選擇月份", sorted(months, reverse=True))
         month_df = df[df['日期'].dt.to_period('M').astype(str) == selected_month]
-        prev_month_df = df[df['日期'].dt.to_period('M').astype(str) == get_prev_month_str(selected_month)]
+        prev_month_str = f"{int(selected_month.split('-')[0])-1}-12" if selected_month.split('-')[1] == '01' else f"{selected_month.split('-')[0]}-{int(selected_month.split('-')[1])-1:02d}"
+        prev_month_df = df[df['日期'].dt.to_period('M').astype(str) == prev_month_str]
         
         current_target = int(profile.get("目標金額", 0)) if str(profile.get("目標月份")) == selected_month else 0
 
@@ -500,18 +517,10 @@ with tab2:
             p_prof = p_inc - p_exp
 
             if current_target > 0:
-                st.markdown(f"### 🚀 目標進度：`${int(t_inc):,}` / `${current_target:,}`")
                 st.progress(min(t_inc / current_target, 1.0))
                 remaining_amount = current_target - t_inc
-                if remaining_amount > 0:
-                    today, s_year, s_month = date.today(), int(selected_month.split('-')[0]), int(selected_month.split('-')[1])
-                    last_day_of_month = calendar.monthrange(s_year, s_month)[1]
-                    if today.year == s_year and today.month == s_month: days_left = last_day_of_month - today.day + 1
-                    elif date(s_year, s_month, last_day_of_month) > today: days_left = last_day_of_month 
-                    else: days_left = 0 
-                    
-                    if days_left > 0: st.info(f"🏃‍♂️ 距離目標還差 **${int(remaining_amount):,}** 元。每天平均需賺 **${int(remaining_amount/days_left):,.0f}**！")
-                else: st.success(f"🎉 已經達成設定的目標，超標賺了 **${int(-remaining_amount):,}** 元！")
+                if remaining_amount > 0: st.info(f"🏃‍♂️ 距離目標還差 **${int(remaining_amount):,}** 元。")
+                else: st.success(f"🎉 超標賺了 **${int(-remaining_amount):,}** 元！")
             
             st.write("")
             m1, m2, m3 = st.columns(3)
@@ -526,19 +535,14 @@ with tab2:
                 trend_df = month_df[month_df['類型'] != '休假'].groupby(['日期', '項目', '類型'])['金額'].sum().reset_index()
                 trend_df.loc[trend_df['類型'] == '開銷', '金額'] *= -1
                 if not trend_df.empty:
-                    y, m = map(int, selected_month.split('-'))
                     fig_bar = px.bar(trend_df, x='日期', y='金額', color='項目', color_discrete_map=CUSTOM_COLORS, barmode='relative')
-                    fig_bar.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                     st.plotly_chart(fig_bar, use_container_width=True)
             with c2:
                 st.subheader("🥧 平台收入佔比")
                 inc_df = month_df[month_df['類型'] == '收入']
                 if not inc_df.empty:
                     pie_data = inc_df.groupby('項目')['金額'].sum().reset_index()
-                    fig_pie = px.pie(pie_data, values='金額', names='項目', hole=0.4, color='項目', color_discrete_map=CUSTOM_COLORS)
-                    fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                    st.plotly_chart(fig_pie, use_container_width=True)
-    else: st.info("目前尚無資料，請先至「每日輸入」新增紀錄。")
+                    st.plotly_chart(px.pie(pie_data, values='金額', names='項目', hole=0.4, color='項目', color_discrete_map=CUSTOM_COLORS), use_container_width=True)
 
 with tab3:
     if not df.empty:
@@ -557,7 +561,6 @@ with tab3:
             fig_yr.add_trace(go.Bar(x=annual_df['月份'], y=annual_df['收入'], name='收入', marker_color='#06C167'))
             fig_yr.add_trace(go.Bar(x=annual_df['月份'], y=annual_df['開銷'], name='開銷', marker_color='#FF2B85'))
             fig_yr.add_trace(go.Scatter(x=annual_df['月份'], y=annual_df['淨利'], name='淨利', mode='lines+markers', marker_color='#F6C143', line=dict(width=3)))
-            fig_yr.update_layout(barmode='group', hovermode='x unified', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_yr, use_container_width=True)
 
 # ==========================================
@@ -568,45 +571,114 @@ with tab4:
     st.write(f"目前的名稱 (道號) 為：**{user_name}**")
     if st.button("重新設定名稱", type="secondary"): 
         update_profile_field("道號", "")
+        st.cache_data.clear()
         st.rerun()
     st.write("---")
-    
     if not df.empty:
         csv_data = df.to_csv(index=False).encode('utf-8-sig')
         st.download_button(label="📥 從雲端下載備份 (Excel可開)", data=csv_data, file_name=f"delivery_records_{date.today().strftime('%Y%m%d')}.csv", mime="text/csv", type="primary") 
 
 # ==========================================
-# 分頁 5: 👑 宗門封神榜 (讀取雲端全資料)
+# 分頁 5: 👑 宗門封神榜 (日/週/月/年/總榜 + 稱號系統 + 節能車神)
 # ==========================================
 with tab_lb:
     st.header("👑 宗門封神榜")
-    st.markdown("天下風雲出我輩，看看本宗門內誰是真正的**外送天尊**！")
+    st.markdown("天下風雲出我輩，實力與策略的頂峰對決！")
     
-    with st.spinner("正在向雲端天機閣索取宗門名冊..."):
-        ws_roster = get_roster_ws()
-        roster_records = ws_roster.get_all_records()
+    col_t1, col_t2 = st.columns(2)
+    with col_t1: time_filter = st.selectbox("📜 選擇時間區間：", ["日榜 (今日)", "週榜 (本週)", "月榜 (本月)", "年榜 (本年度)", "總榜 (歷史巔峰)"])
+    with col_t2: rank_type = st.selectbox("⚔️ 選擇競技賽道：", ["🏆 綜合戰鬥力 (CP)", "💰 爆肝總靈石", "🛵 節能車神 (投資報酬率)"])
     
-    if roster_records:
-        lb_data = []
-        for r in roster_records:
-            if str(r.get("道號", "")) != "": # 只顯示有設定名稱的弟子
-                lb_data.append({
-                    "排名": 0,
-                    "道號": f"{str(r['道號'])}",
-                    "境界": f"{str(r['境界'])} ({str(r['座騎'])})",
-                    "戰鬥力 (CP)": int(r['戰鬥力']) if r['戰鬥力'] != '' else 0,
-                    "累積靈石": f"${int(r['總靈石']):,}" if r['總靈石'] != '' else "$0",
-                    "度過天劫": int(r['天劫數']) if r['天劫數'] != '' else 0
-                })
-        
-        if lb_data:
-            lb_df = pd.DataFrame(lb_data)
-            lb_df = lb_df.sort_values(by="戰鬥力 (CP)", ascending=False).reset_index(drop=True)
-            lb_df.index = lb_df.index + 1
-            lb_df["排名"] = lb_df.index.map(lambda x: f"🥇" if x==1 else (f"🥈" if x==2 else (f"🥉" if x==3 else str(x))))
-            
-            st.dataframe(lb_df, hide_index=True, use_container_width=True)
-        else:
-            st.info("宗門尚無弟子參與排名。")
-    else:
-        st.info("宗門尚無弟子參與排名。")
+    with st.spinner("⏳ 天機閣正在運算全宗門數據..."):
+        try:
+            if big_df.empty:
+                st.info("宗門尚無任何紀錄。")
+            else:
+                # 根據時間過濾
+                if "日榜" in time_filter: filtered_df = big_df[big_df['日期'] == today]
+                elif "週榜" in time_filter: filtered_df = big_df[(big_df['日期'] >= today - timedelta(days=today.weekday())) & (big_df['日期'] <= today)]
+                elif "月榜" in time_filter: filtered_df = big_df[(pd.to_datetime(big_df['日期']).dt.month == today.month) & (pd.to_datetime(big_df['日期']).dt.year == today.year)]
+                elif "年榜" in time_filter: filtered_df = big_df[pd.to_datetime(big_df['日期']).dt.year == today.year]
+                else: filtered_df = big_df
+                
+                lb_data = []
+                for uid, u_name in user_map.items():
+                    user_df = filtered_df[filtered_df['User_ID'] == uid]
+                    if not user_df.empty:
+                        u_inc = user_df[user_df['類型'] == '收入']['金額'].sum()
+                        u_hr = user_df[user_df['類型'] == '收入']['上線時數'].sum()
+                        u_days = user_df[user_df['類型'] == '收入']['日期'].nunique()
+                        u_tribs = user_df[user_df['天劫'] == 'True'].shape[0] if '天劫' in user_df.columns else 0
+                        
+                        # 計算機車相關開銷 (油錢+保養) 用於節能車神榜
+                        u_exp_df = user_df[(user_df['類型'] == '開銷') & (user_df['項目'].isin(['機車油錢', '機車保養']))]
+                        u_gas_exp = u_exp_df['金額'].sum() if not u_exp_df.empty else 0
+                        
+                        if u_inc > 0 or "總榜" in time_filter:
+                            avg_w = u_inc / u_hr if u_hr > 0 else 0
+                            u_cp = int((u_inc / 100) + (avg_w * 10) + (u_days * 50) + (u_tribs * 300))
+                            
+                            # 節能轉換率：每花 1 元油錢/保養，能賺回多少靈石 (分母+1避免除以0)
+                            efficiency = u_inc / (u_gas_exp + 1) if u_gas_exp > 0 else u_inc
+                            
+                            lb_data.append({
+                                "User_ID": uid,
+                                "道號": u_name,
+                                "CP": u_cp,
+                                "Income": u_inc,
+                                "Efficiency": efficiency,
+                                "GasExp": u_gas_exp,
+                                "Tribs": u_tribs
+                            })
+                
+                if lb_data:
+                    lb_df = pd.DataFrame(lb_data)
+                    
+                    # 根據選擇的賽道排序
+                    if "綜合戰鬥力" in rank_type:
+                        lb_df = lb_df.sort_values(by="CP", ascending=False).reset_index(drop=True)
+                        sort_key = "CP"
+                    elif "爆肝總靈石" in rank_type:
+                        lb_df = lb_df.sort_values(by="Income", ascending=False).reset_index(drop=True)
+                        sort_key = "Income"
+                    else: # 節能車神
+                        lb_df = lb_df.sort_values(by="Efficiency", ascending=False).reset_index(drop=True)
+                        sort_key = "Efficiency"
+                        
+                    # 賦予稱號與排名
+                    lb_df.index = lb_df.index + 1
+                    display_data = []
+                    
+                    for idx, row in lb_df.iterrows():
+                        # 動態稱號系統
+                        title_prefix = ""
+                        if idx == 1: title_prefix = "👑 [肝帝] " if "車神" not in rank_type else "👑 [節能天尊] "
+                        elif idx == len(lb_df) and len(lb_df) > 1: title_prefix = "💤 [摸魚仙人] " if "車神" not in rank_type else "💸 [吃油怪獸] "
+                        
+                        rank_str = f"🥇" if idx==1 else (f"🥈" if idx==2 else (f"🥉" if idx==3 else str(idx)))
+                        
+                        # 依照不同賽道顯示不同關鍵數據
+                        if "車神" in rank_type:
+                            display_data.append({
+                                "排名": rank_str,
+                                "道號": f"{title_prefix}{row['道號']}",
+                                "賺取靈石": f"${int(row['Income']):,}",
+                                "油錢與保養": f"${int(row['GasExp']):,}",
+                                "油耗轉換率": f"1 : {row['Efficiency']:.1f}"
+                            })
+                        else:
+                            display_data.append({
+                                "排名": rank_str,
+                                "道號": f"{title_prefix}{row['道號']}",
+                                "戰鬥力 (CP)": int(row['CP']),
+                                "期間靈石": f"${int(row['Income']):,}",
+                                "挺過天劫": int(row['Tribs'])
+                            })
+                            
+                    st.dataframe(pd.DataFrame(display_data), hide_index=True, use_container_width=True)
+                    if "車神" in rank_type:
+                        st.caption("💡 【節能車神榜】計算公式：期間賺取靈石 ÷ (機車油錢 + 機車保養)。轉換率越高，代表你的座騎越省錢！剛好可以測試新戰車的極限！")
+                else:
+                    st.info(f"無人上榜。在『{time_filter.split(' ')[0]}』期間，宗門內尚無弟子外出歷練。")
+        except Exception as e:
+            st.error(f"⚠️ 天機閣運算出現殘影，請重整網頁。錯誤碼：{e}")
