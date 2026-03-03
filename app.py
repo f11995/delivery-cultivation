@@ -76,8 +76,9 @@ def get_sheet():
 
 def get_roster_ws():
     sheet = get_sheet()
-    try: return sheet.worksheet("宗門名冊")
-    except:
+    try: 
+        return sheet.worksheet("宗門名冊")
+    except gspread.exceptions.WorksheetNotFound: # 💡 精準捕捉：只有「找不到」才新建
         ws = sheet.add_worksheet(title="宗門名冊", rows="100", cols="20")
         ws.append_row(["User_ID", "道號", "總靈石", "總時數", "總天數", "天劫數", "戰鬥力", "境界", "座騎", "任務日期", "任務ID", "任務狀態", "運勢日期", "運勢", "目標月份", "目標金額", "額外戰力"])
         return ws
@@ -85,16 +86,18 @@ def get_roster_ws():
 def get_user_records_ws(user_id):
     sheet = get_sheet()
     ws_name = f"records_{user_id}"
-    try: return sheet.worksheet(ws_name)
-    except:
+    try: 
+        return sheet.worksheet(ws_name)
+    except gspread.exceptions.WorksheetNotFound: # 💡 精準捕捉
         ws = sheet.add_worksheet(title=ws_name, rows="1000", cols="10")
         ws.append_row(["日期", "類型", "項目", "金額", "上線時數", "備註", "天劫"])
         return ws
 
 def get_feed_ws():
     sheet = get_sheet()
-    try: return sheet.worksheet("宗門動態")
-    except:
+    try: 
+        return sheet.worksheet("宗門動態")
+    except gspread.exceptions.WorksheetNotFound: # 💡 精準捕捉
         ws = sheet.add_worksheet(title="宗門動態", rows="500", cols="5")
         ws.append_row(["時間", "發送者", "接收者", "動作", "訊息"])
         return ws
