@@ -50,10 +50,8 @@ FORTUNE_POOL = [
     "💀 大凶：業障引爆！導航當機、店家忘記做餐、客人填錯地址，三劫臨頭，快去過香爐！"
 ]
 
-QUEST_DATA = {1: {"name": "【爆肝試煉】", "desc": "今日閉關（上線）需滿 8 小時"}, 2: {"name": "【清心寡慾】", "desc": "除了油錢與保養，今日零額外開銷"}, 3: {"name": "【小有斬獲】", "desc": "今日獲取 1500 靈石"}}
-
 # ==========================================
-# 🌐 Google Sheets 雲端資料庫引擎
+# 🌐 Google Sheets 雲端資料庫引擎 (含精準防禦機制)
 # ==========================================
 @st.cache_resource
 def get_gspread_client():
@@ -78,7 +76,7 @@ def get_roster_ws():
     sheet = get_sheet()
     try: 
         return sheet.worksheet("宗門名冊")
-    except gspread.exceptions.WorksheetNotFound: # 💡 精準捕捉：只有「找不到」才新建
+    except gspread.exceptions.WorksheetNotFound: # 💡 精準防護
         ws = sheet.add_worksheet(title="宗門名冊", rows="100", cols="20")
         ws.append_row(["User_ID", "道號", "總靈石", "總時數", "總天數", "天劫數", "戰鬥力", "境界", "座騎", "任務日期", "任務ID", "任務狀態", "運勢日期", "運勢", "目標月份", "目標金額", "額外戰力"])
         return ws
@@ -88,7 +86,7 @@ def get_user_records_ws(user_id):
     ws_name = f"records_{user_id}"
     try: 
         return sheet.worksheet(ws_name)
-    except gspread.exceptions.WorksheetNotFound: # 💡 精準捕捉
+    except gspread.exceptions.WorksheetNotFound: # 💡 精準防護
         ws = sheet.add_worksheet(title=ws_name, rows="1000", cols="10")
         ws.append_row(["日期", "類型", "項目", "金額", "上線時數", "備註", "天劫"])
         return ws
@@ -97,7 +95,7 @@ def get_feed_ws():
     sheet = get_sheet()
     try: 
         return sheet.worksheet("宗門動態")
-    except gspread.exceptions.WorksheetNotFound: # 💡 精準捕捉
+    except gspread.exceptions.WorksheetNotFound: # 💡 精準防護
         ws = sheet.add_worksheet(title="宗門動態", rows="500", cols="5")
         ws.append_row(["時間", "發送者", "接收者", "動作", "訊息"])
         return ws
@@ -193,6 +191,7 @@ def update_other_user_bonus_cp(target_uid, amount_change):
             break
 
 def get_realm_tier_and_buffs(total_exp):
+    # 💡 完整接收 6 個回傳值，解決 ValueError 崩潰
     current_realm, _, _, _, _, _ = get_realm_info(total_exp)
     if "凡人" in current_realm or "煉氣" in current_realm: return 0, 0, 0, 1.0, 0, 1.0
     elif "築基" in current_realm: return 1, 5, 5, 0.9, 5, 1.05
@@ -252,7 +251,7 @@ def get_mount_info(total_hours):
 def change_date(new_date): st.session_state.selected_date = new_date
 
 # --- 網頁介面與 CSS 開始 ---
-st.set_page_config(page_title="外送修仙錄 - 宗門大亂鬥", layout="wide", page_icon="☁️")
+st.set_page_config(page_title="外送修仙錄", layout="wide", page_icon="☁️")
 st.markdown("""
 <style>
     .stApp { background-color: #121212; background-image: radial-gradient(circle at 50% 0%, #2b2b2b 0%, #121212 70%); color: #E0E0E0; }
@@ -268,7 +267,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 🛡️ 護山大陣 (純淨穩定版)
+# 🛡️ 護山大陣 (純淨標準登入版，移除網址記憶)
 # ==========================================
 if "authenticated" not in st.session_state: st.session_state.authenticated = False
 if "user_id" not in st.session_state: st.session_state.user_id = ""
@@ -315,7 +314,7 @@ t_col1, t_col2 = st.columns([3, 1])
 with t_col1:
     st.title(f"☁️ 雲端宗門 - {user_name}")
 with t_col2:
-    st.markdown("<br>", unsafe_allow_html=True) # 調整對齊高度
+    st.markdown("<br>", unsafe_allow_html=True) 
     if st.button("🔄 重整數據", type="secondary", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
@@ -338,7 +337,6 @@ m_name, m_avatar = get_mount_info(total_hr_val)
 # ==========================================
 with tab0:
     st.markdown("### 📜 個人狀態面板")
-    
     stat_c1, stat_c2, stat_c3 = st.columns([1.2, 1.5, 1.8])
     
     with stat_c1:
@@ -508,7 +506,7 @@ with tab0:
                 st.rerun()
 
 # ==========================================
-# 分頁 1: 每日輸入
+# 分頁 1: 每日輸入 (含 12H 剩餘時數反推)
 # ==========================================
 with tab1:
     col1, col2 = st.columns([1, 1.2])
@@ -538,7 +536,9 @@ with tab1:
                 with f_col: amount_f = st.number_input("Foodpanda", min_value=0, step=10, value=None, key=f"amtf_{k}")
                 val_amount = (amount_u or 0) + (amount_f or 0)
                 
-            time_mode = st.radio("時數記錄方式", ["自動換算 (首單至末單)", "手動輸入時數"], horizontal=True)
+            # 💡 這裡完美加入了 12 小時反推系統
+            time_mode = st.radio("時數記錄方式", ["自動換算 (首單至末單)", "手動輸入時數", "剩餘時數反推 (12H制)"], horizontal=True)
+            
             if time_mode == "自動換算 (首單至末單)":
                 t_col1, t_col2 = st.columns(2)
                 with t_col1: start_time = st.time_input("首單時間", time(10, 0), key=f"t1_{k}") 
@@ -547,11 +547,28 @@ with tab1:
                 if dt_end < dt_start: dt_end += timedelta(days=1)
                 hours = round((dt_end - dt_start).total_seconds() / 3600.0, 2)
                 st.info(f"⏱️ 系統換算：**{hours} 小時**")
-            else:
+                
+            elif time_mode == "手動輸入時數":
                 h_col, m_col = st.columns(2)
-                with h_col: input_hours = st.number_input("小時", min_value=0, step=1, value=None, key=f"hr_{k}")
-                with m_col: input_minutes = st.number_input("分鐘", min_value=0, max_value=59, step=1, value=None, key=f"min_{k}")
+                with h_col: input_hours = st.number_input("上線小時", min_value=0, step=1, value=None, key=f"hr_{k}")
+                with m_col: input_minutes = st.number_input("上線分鐘", min_value=0, max_value=59, step=1, value=None, key=f"min_{k}")
                 hours = round((input_hours or 0) + ((input_minutes or 0) / 60.0), 2)
+                
+            else: # 剩餘時數反推
+                st.caption("💡 輸入 APP 顯示的「剩餘駕駛時間」反推：")
+                h_col, m_col = st.columns(2)
+                with h_col: remain_hours = st.number_input("剩餘小時", min_value=0, max_value=12, step=1, value=None, key=f"r_hr_{k}")
+                with m_col: remain_minutes = st.number_input("剩餘分鐘", min_value=0, max_value=59, step=1, value=None, key=f"r_min_{k}")
+                
+                if remain_hours is not None or remain_minutes is not None:
+                    r_h = remain_hours or 0
+                    r_m = remain_minutes or 0
+                    total_remain_mins = r_h * 60 + r_m
+                    used_mins = max(0, 720 - total_remain_mins) # 用 12 小時 (720分鐘) 扣除
+                    hours = round(used_mins / 60.0, 2)
+                    st.info(f"⏱️ 系統反推已上線：**{hours} 小時** (約 {used_mins // 60} 小時 {used_mins % 60} 分)")
+                else:
+                    hours = 0.0
                 
             note = st.text_input("備註 (選填)", value="", key=f"note_{k}")
 
