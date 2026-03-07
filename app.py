@@ -35,7 +35,7 @@ FORTUNE_POOL = [
 ]
 
 # ==========================================
-# 🌐 Google Sheets 雲端資料庫引擎
+# 🌐 Google Sheets 雲端資料庫引擎 (API 存取極致優化)
 # ==========================================
 @st.cache_resource
 def get_gspread_client():
@@ -56,6 +56,7 @@ def get_sheet():
         st.error(f"❌ 找不到試算表！請確認網址正確：{e}")
         st.stop()
 
+@st.cache_resource
 def get_roster_ws():
     sheet = get_sheet()
     try: return sheet.worksheet("宗門名冊")
@@ -64,6 +65,7 @@ def get_roster_ws():
         ws.append_row(["User_ID", "道號", "總靈石", "總時數", "總天數", "天劫數", "戰鬥力", "境界", "座騎", "任務日期", "任務ID", "任務狀態", "運勢日期", "運勢", "目標月份", "目標金額", "額外戰力"])
         return ws
 
+@st.cache_resource
 def get_user_records_ws(user_id):
     sheet = get_sheet()
     ws_name = f"records_{user_id}"
@@ -73,6 +75,7 @@ def get_user_records_ws(user_id):
         ws.append_row(["日期", "類型", "項目", "金額", "上線時數", "備註", "天劫"])
         return ws
 
+@st.cache_resource
 def get_feed_ws():
     sheet = get_sheet()
     try: return sheet.worksheet("宗門動態")
@@ -81,10 +84,20 @@ def get_feed_ws():
         ws.append_row(["時間", "發送者", "接收者", "動作", "訊息"])
         return ws
 
+# 💡 獨立快取各表數據，避免全部重抓
+@st.cache_data(ttl=30, show_spinner=False)
+def get_roster_data():
+    return get_roster_ws().get_all_records()
+
+@st.cache_data(ttl=30, show_spinner=False)
+def get_feed_data():
+    try: return get_feed_ws().get_all_records()
+    except: return []
+
 @st.cache_data(ttl=60, show_spinner=False)
 def get_all_sect_data():
     sheet = get_sheet()
-    roster_records = get_roster_ws().get_all_records()
+    roster_records = get_roster_data()
     user_map = {str(r["User_ID"]): str(r.get("道號", "無名修士")) for r in roster_records if str(r.get("道號", "")) != ""}
     all_data = []
     for ws in sheet.worksheets():
@@ -112,47 +125,52 @@ def load_data(user_id):
         df['日期'] = pd.to_datetime(df['日期'])
     return df
 
+# 💡 精準清除快取，不再使用毀滅性的 st.cache_data.clear()
 def save_data(date_val, record_type, item, amount, hours, note, tribulation):
     with st.spinner("⏳ 正在將玉簡傳送至雲端藏寶閣..."):
         ws = get_user_records_ws(st.session_state.user_id)
         ws.append_row([str(date_val), str(record_type), str(item), int(amount), float(hours), str(note), str(tribulation)])
-        st.cache_data.clear()
+        load_data.clear(st.session_state.user_id)
         update_roster_stats()
 
 def delete_data(indices_to_drop):
     with st.spinner("⏳ 正在從雲端抹除因果..."):
         ws = get_user_records_ws(st.session_state.user_id)
         for idx in sorted(indices_to_drop, reverse=True): ws.delete_rows(idx + 2)
-        st.cache_data.clear()
+        load_data.clear(st.session_state.user_id)
         update_roster_stats()
 
 def add_feed_interaction(sender_name, receiver_name, action, message):
     ws = get_feed_ws()
     ws.append_row([str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")), str(sender_name), str(receiver_name), str(action), str(message)])
-    st.cache_data.clear()
+    get_feed_data.clear()
 
 def get_user_profile():
     ws = get_roster_ws()
-    records = ws.get_all_records()
+    records = get_roster_data()
     for i, r in enumerate(records):
         if str(r["User_ID"]) == st.session_state.user_id: return r, i + 2
     new_row = [st.session_state.user_id, "", 0, 0, 0, 0, 0, "凡人武夫", "凡鐵飛劍", "", 0, 0, "", "", "", 0, 0]
     ws.append_row(new_row)
+    get_roster_data.clear()
     return dict(zip(["User_ID", "道號", "總靈石", "總時數", "總天數", "天劫數", "戰鬥力", "境界", "座騎", "任務日期", "任務ID", "任務狀態", "運勢日期", "運勢", "目標月份", "目標金額", "額外戰力"], new_row)), len(records) + 2
 
 def update_profile_field(col_name, value):
     ws = get_roster_ws()
-    headers = ws.row_values(1)
+    records = get_roster_data()
+    headers = list(records[0].keys()) if records else ws.row_values(1)
     if col_name in headers:
         col_idx = headers.index(col_name) + 1
-        _, row_idx = get_user_profile()
-        if isinstance(value, (int, float)): ws.update_cell(row_idx, col_idx, float(value) if isinstance(value, float) else int(value))
-        else: ws.update_cell(row_idx, col_idx, str(value))
+        row_idx = next((i + 2 for i, r in enumerate(records) if str(r["User_ID"]) == st.session_state.user_id), None)
+        if row_idx:
+            if isinstance(value, (int, float)): ws.update_cell(row_idx, col_idx, float(value) if isinstance(value, float) else int(value))
+            else: ws.update_cell(row_idx, col_idx, str(value))
+            get_roster_data.clear()
 
 def update_other_user_bonus_cp(target_uid, amount_change):
     ws = get_roster_ws()
-    records = ws.get_all_records()
-    headers = ws.row_values(1)
+    records = get_roster_data()
+    headers = list(records[0].keys()) if records else ws.row_values(1)
     if "額外戰力" not in headers: return
     col_idx = headers.index("額外戰力") + 1
     cp_idx = headers.index("戰鬥力") + 1
@@ -162,6 +180,7 @@ def update_other_user_bonus_cp(target_uid, amount_change):
             curr_cp = int(r.get("戰鬥力", 0)) if str(r.get("戰鬥力", "")) != "" else 0
             ws.update_cell(i + 2, col_idx, curr_bonus + amount_change)
             ws.update_cell(i + 2, cp_idx, curr_cp + amount_change)
+            get_roster_data.clear()
             break
 
 def get_realm_tier_and_buffs(total_exp):
@@ -184,12 +203,13 @@ def update_roster_stats():
     base_cp = int(((t_inc / 100) + (avg_w * 10) + (t_days * 50) + (t_tribs * 300)) * cp_mult)
     
     ws = get_roster_ws()
-    _, row_idx = get_user_profile()
+    records = get_roster_data()
     
-    records = ws.get_all_records()
     bonus_cp = 0
-    for r in records:
+    row_idx = None
+    for i, r in enumerate(records):
         if str(r["User_ID"]) == st.session_state.user_id:
+            row_idx = i + 2
             bonus_cp = int(r.get("額外戰力", 0)) if str(r.get("額外戰力", "")) != "" else 0
             break
             
@@ -197,8 +217,13 @@ def update_roster_stats():
     realm, _, _, _, _, _ = get_realm_info(t_inc)
     mount, _ = get_mount_info(t_hr)
     
-    ws.update(values=[[int(t_inc), float(t_hr), int(t_days), int(t_tribs), int(final_cp), str(realm), str(mount)]], range_name=f"C{row_idx}:I{row_idx}")
+    if row_idx:
+        ws.update(values=[[int(t_inc), float(t_hr), int(t_days), int(t_tribs), int(final_cp), str(realm), str(mount)]], range_name=f"C{row_idx}:I{row_idx}")
+        get_roster_data.clear()
 
+# ==========================================
+# 輔助計算函數
+# ==========================================
 def get_realm_info(total_exp):
     current_realm, current_title, current_avatar = "凡人武夫", "初出茅廬的跑腿", "🚶‍♂️"
     next_realm, next_exp, prev_exp = "未知", 10000, 0
@@ -220,9 +245,7 @@ def get_mount_info(total_hours):
 
 def change_date(new_date): st.session_state.selected_date = new_date
 
-# ==========================================
-# 🎨 史詩級視覺 CSS 與特效注入 (修復版)
-# ==========================================
+# --- 網頁介面與 CSS 開始 ---
 st.set_page_config(page_title="外送修仙錄 - 終極覺醒", layout="wide", page_icon="⚡")
 st.markdown("""
 <style>
@@ -233,13 +256,9 @@ st.markdown("""
         animation: gradientBG 15s ease infinite;
         color: #E0E0E0;
     }
-    @keyframes gradientBG {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-    }
+    @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
 
-    /* 💡 精準鎖定 Streamlit 原生容器，賦予玻璃特效，絕對不破版！ */
+    /* 頂級毛玻璃材質 */
     div[data-testid="stVerticalBlockBorderWrapper"] {
         background: rgba(20, 25, 40, 0.45) !important;
         backdrop-filter: blur(12px) !important;
@@ -252,88 +271,32 @@ st.markdown("""
         transition: transform 0.3s ease, box-shadow 0.3s ease !important;
         padding: 1.5rem !important;
     }
-    div[data-testid="stVerticalBlockBorderWrapper"]:hover {
-        box-shadow: 0 12px 40px 0 rgba(255, 215, 0, 0.15) !important;
-        border: 1px solid rgba(255, 215, 0, 0.4) !important;
-    }
+    div[data-testid="stVerticalBlockBorderWrapper"]:hover { box-shadow: 0 12px 40px 0 rgba(255, 215, 0, 0.15) !important; border: 1px solid rgba(255, 215, 0, 0.4) !important; }
 
     /* 電競級立體 Tabs 選單 */
-    .stTabs [data-baseweb="tab-list"] {
-        background-color: rgba(0, 0, 0, 0.4);
-        border-radius: 12px;
-        padding: 5px;
-        box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
-    }
-    .stTabs [data-baseweb="tab"] {
-        color: #AAAAAA;
-        border-radius: 8px;
-        transition: all 0.3s;
-    }
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(90deg, #FF8C00, #FFD700);
-        color: #1a1a2e !important;
-        font-weight: 900;
-        box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
-    }
+    .stTabs [data-baseweb="tab-list"] { background-color: rgba(0, 0, 0, 0.4); border-radius: 12px; padding: 5px; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); }
+    .stTabs [data-baseweb="tab"] { color: #AAAAAA; border-radius: 8px; transition: all 0.3s; }
+    .stTabs [aria-selected="true"] { background: linear-gradient(90deg, #FF8C00, #FFD700); color: #1a1a2e !important; font-weight: 900; box-shadow: 0 0 15px rgba(255, 215, 0, 0.5); }
 
     /* 戰鬥力金光呼吸燈 */
     .cp-text-glow {
-        font-size: 65px;
-        font-weight: 900;
-        background: -webkit-linear-gradient(#FFE000, #FF8C00);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-align: center;
-        margin: 0;
-        line-height: 1.1;
-        filter: drop-shadow(0px 0px 10px rgba(255, 140, 0, 0.6));
-        animation: pulseGlow 2.5s infinite;
+        font-size: 65px; font-weight: 900; background: -webkit-linear-gradient(#FFE000, #FF8C00); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        text-align: center; margin: 0; line-height: 1.1; filter: drop-shadow(0px 0px 10px rgba(255, 140, 0, 0.6)); animation: pulseGlow 2.5s infinite;
     }
-    @keyframes pulseGlow {
-        0% { filter: drop-shadow(0px 0px 8px rgba(255, 140, 0, 0.5)); transform: scale(1); }
-        50% { filter: drop-shadow(0px 0px 25px rgba(255, 215, 0, 0.9)); transform: scale(1.03); }
-        100% { filter: drop-shadow(0px 0px 8px rgba(255, 140, 0, 0.5)); transform: scale(1); }
-    }
+    @keyframes pulseGlow { 0% { filter: drop-shadow(0px 0px 8px rgba(255, 140, 0, 0.5)); transform: scale(1); } 50% { filter: drop-shadow(0px 0px 25px rgba(255, 215, 0, 0.9)); transform: scale(1.03); } 100% { filter: drop-shadow(0px 0px 8px rgba(255, 140, 0, 0.5)); transform: scale(1); } }
 
     /* 圖示懸浮動畫 */
-    .floating-icon {
-        font-size: 45px;
-        display: inline-block;
-        animation: floatAnim 3s ease-in-out infinite;
-        filter: drop-shadow(0px 10px 5px rgba(0,0,0,0.5));
-    }
-    @keyframes floatAnim {
-        0% { transform: translateY(0px); }
-        50% { transform: translateY(-10px); filter: drop-shadow(0px 20px 10px rgba(0,0,0,0.3));}
-        100% { transform: translateY(0px); }
-    }
+    .floating-icon { font-size: 45px; display: inline-block; animation: floatAnim 3s ease-in-out infinite; filter: drop-shadow(0px 10px 5px rgba(0,0,0,0.5)); }
+    @keyframes floatAnim { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); filter: drop-shadow(0px 20px 10px rgba(0,0,0,0.3));} 100% { transform: translateY(0px); } }
     
-    /* VIP 專屬金框 (純文字顯示用) */
-    .vip-box {
-        border: 1px solid rgba(255, 215, 0, 0.6);
-        background: linear-gradient(90deg, rgba(255,215,0,0.1), rgba(0,0,0,0));
-        padding: 12px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        box-shadow: 0 0 15px rgba(255, 215, 0, 0.1);
-    }
+    /* VIP 專屬金框 */
+    .vip-box { border: 1px solid rgba(255, 215, 0, 0.6); background: linear-gradient(90deg, rgba(255,215,0,0.1), rgba(0,0,0,0)); padding: 12px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 0 15px rgba(255, 215, 0, 0.1); }
     
     /* 進度條魔法化 */
-    .stProgress > div > div > div > div {
-        background-image: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%);
-        box-shadow: 0 0 10px #00C9FF;
-    }
+    .stProgress > div > div > div > div { background-image: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%); box-shadow: 0 0 10px #00C9FF; }
     
     /* 動態牆項目 */
-    .feed-box {
-        border-left: 4px solid #00E5FF;
-        background: rgba(255,255,255,0.03);
-        padding: 12px;
-        border-radius: 0 8px 8px 0;
-        margin-bottom: 10px;
-        font-size: 14px;
-        transition: background 0.3s;
-    }
+    .feed-box { border-left: 4px solid #00E5FF; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 0 8px 8px 0; margin-bottom: 10px; font-size: 14px; transition: background 0.3s; }
     .feed-box:hover { background: rgba(255,255,255,0.08); border-left: 4px solid #FFD700; }
 </style>
 """, unsafe_allow_html=True)
@@ -372,7 +335,8 @@ if profile["道號"] == "":
     if st.button("🚀 登記入冊", type="primary"):
         if new_name.strip():
             update_profile_field("道號", new_name.strip())
-            st.cache_data.clear()
+            get_roster_data.clear()
+            get_all_sect_data.clear()
             st.rerun()
     st.stop()
 
@@ -405,7 +369,7 @@ total_hr_val = float(profile.get('總時數', 0.0)) if str(profile.get('總時�
 m_name, m_avatar = get_mount_info(total_hr_val)
 
 # ==========================================
-# 分頁 0: 🐉 宗門大殿 (修復空白問題，採用原生 border=True 渲染)
+# 分頁 0: 🐉 宗門大殿
 # ==========================================
 with tab0:
     stat_c1, stat_c2, stat_c3 = st.columns([1.2, 1.5, 1.8])
@@ -559,10 +523,10 @@ with tab0:
                         st.success("已傳送靈氣！")
             
             try:
-                feed_records = get_feed_ws().get_all_records()
+                feed_records = get_feed_data()
                 if feed_records:
                     for r in reversed(feed_records[-5:]): 
-                        emoji = "✨" if r['动作'] in ["傳送靈氣", "煉丹大成功", "吸星大法"] else "💨"
+                        emoji = "✨" if r['動作'] in ["傳送靈氣", "煉丹大成功", "吸星大法"] else "💨"
                         st.markdown(f"<div class='feed-box'><span style='color:#00E5FF; font-size: 12px; font-weight:bold;'>{r['時間']}</span><br><b>{r['發送者']}</b> {emoji} 對 <b>{r['接收者']}</b> 施放了【{r['動作']}】<br><i style='color:#CCC;'>「{r['訊息']}」</i></div>", unsafe_allow_html=True)
                 else: st.caption("宗門目前一片祥和...")
             except: st.caption("動態牆讀取中...")
@@ -827,7 +791,8 @@ with tab4:
         st.write(f"目前的名稱 (道號) 為：**{user_name}**")
         if st.button("重新設定名稱", type="secondary"): 
             update_profile_field("道號", "")
-            st.cache_data.clear()
+            get_roster_data.clear()
+            get_all_sect_data.clear()
             st.rerun()
         st.write("---")
         if not df.empty:
