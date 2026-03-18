@@ -162,27 +162,13 @@ st.markdown(f"""
     .stApp {{ background-color: {COLOR_BG}; color: {COLOR_TEXT_PRIMARY}; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }}
     .block-container {{ padding-top: 2rem; padding-bottom: 5rem; max-width: 1400px; }}
     h1, h2, h3, h4 {{ font-weight: 700; letter-spacing: -0.5px; }}
-    
     header[data-testid="stHeader"] {{ background: transparent !important; }}
     footer {{ visibility: hidden; }}
 
-    /* 頂部標籤頁 Tabs 樣式重構 */
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 20px;
-        background-color: transparent;
-        border-bottom: 2px solid #2C2C2E;
-    }}
-    .stTabs [data-baseweb="tab"] {{
-        color: {COLOR_TEXT_SECONDARY};
-        font-weight: 600;
-        font-size: 18px;
-        padding-bottom: 12px;
-        border-bottom: 2px solid transparent;
-    }}
-    .stTabs [aria-selected="true"] {{
-        color: {COLOR_INCOME} !important;
-        border-bottom: 2px solid {COLOR_INCOME} !important;
-    }}
+    /* 頂部標籤頁 Tabs 樣式重構 (無側邊欄) */
+    .stTabs [data-baseweb="tab-list"] {{ gap: 20px; background-color: transparent; border-bottom: 2px solid #2C2C2E; margin-bottom: 20px; }}
+    .stTabs [data-baseweb="tab"] {{ color: {COLOR_TEXT_SECONDARY}; font-weight: 600; font-size: 18px; padding-bottom: 12px; border-bottom: 2px solid transparent; }}
+    .stTabs [aria-selected="true"] {{ color: {COLOR_INCOME} !important; border-bottom: 2px solid {COLOR_INCOME} !important; }}
 
     div[data-testid="stVerticalBlockBorderWrapper"] {{
         background-color: {COLOR_CARD_BG} !important;
@@ -191,6 +177,12 @@ st.markdown(f"""
         padding: 1.5rem !important;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
     }}
+
+    /* 帶漸層背景的 KPI 卡片 */
+    .kpi-card-green {{ background: linear-gradient(135deg, rgba(6,193,103,0.15) 0%, rgba(28,28,30,0) 100%); border-left: 4px solid {COLOR_INCOME}; padding: 15px 20px; border-radius: 12px; margin-bottom: 10px; }}
+    .kpi-card-blue {{ background: linear-gradient(135deg, rgba(0,229,255,0.15) 0%, rgba(28,28,30,0) 100%); border-left: 4px solid {COLOR_BALANCE}; padding: 15px 20px; border-radius: 12px; margin-bottom: 10px; }}
+    .kpi-card-purple {{ background: linear-gradient(135deg, rgba(191,90,242,0.15) 0%, rgba(28,28,30,0) 100%); border-left: 4px solid #BF5AF2; padding: 15px 20px; border-radius: 12px; margin-bottom: 10px; }}
+    .kpi-card-orange {{ background: linear-gradient(135deg, rgba(255,159,10,0.15) 0%, rgba(28,28,30,0) 100%); border-left: 4px solid #FF9F0A; padding: 15px 20px; border-radius: 12px; margin-bottom: 10px; }}
 
     .kpi-container {{ display: flex; justify-content: space-between; align-items: center; }}
     .kpi-item {{ text-align: center; flex: 1; }}
@@ -215,9 +207,7 @@ st.markdown(f"""
     button[kind="secondary"] {{ background-color: rgba(255, 255, 255, 0.05) !important; border: none; color: {COLOR_TEXT_SECONDARY}; }}
     .stProgress > div > div > div > div {{ background-color: #06C167; }}
     .js-plotly-plot .plotly .bg {{ fill: transparent !important; }}
-    
-    /* 縮小日曆按鈕間距 */
-    div[data-testid="column"] {{ padding: 0 2px; }}
+    div[data-testid="column"] {{ padding: 0 4px; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -271,13 +261,13 @@ total_gas_maint = df[(df['類型'] == '開銷') & (df['項目'].isin(['機車油
 roi = (total_income / total_gas_maint) if total_gas_maint > 0 else total_income
 driver_tier, next_tier, next_exp, prog, d_title, d_icon = get_driver_tier_info(total_income)
 
-# 頂部標題與狀態列 (取代舊的側邊欄)
-col_title, col_sync = st.columns([4, 1])
+# 頂部標題與狀態列 (完美取代側邊欄，橫向展開)
+col_title, col_sync = st.columns([5, 1])
 with col_title:
     st.markdown(f"""
     <h2 style='margin:0;'>Delivery <span style='color:{COLOR_INCOME};'>Pro</span> 
     <span style='font-size:16px; color:{COLOR_TEXT_SECONDARY}; font-weight:500; margin-left:15px;'>
-    {d_icon} 評級: {driver_tier} &nbsp;|&nbsp; 💰 終身收入: ${int(total_income):,} &nbsp;|&nbsp; 📈 ROI: 1:{roi:.1f}
+    {d_icon} 評級: {driver_tier} &nbsp;|&nbsp; 💰 終身收入: ${int(total_income):,} &nbsp;|&nbsp; 📈 總投資報酬: 1:{roi:.1f}
     </span></h2>
     """, unsafe_allow_html=True)
 with col_sync:
@@ -291,36 +281,115 @@ st.write("")
 tab_dash, tab_add, tab_report, tab_settings = st.tabs(["📊 總覽 (Dashboard)", "➕ 記一筆 (Add Log)", "📈 報表 (Analytics)", "⚙️ 設定 (Settings)"])
 
 # ==========================================
-# 分頁：📊 總覽 (Dashboard)
+# 分頁：📊 總覽 (Dashboard) - 豐富視覺化重構
 # ==========================================
 with tab_dash:
+    # 準備總覽所需的數據
     start_of_week = today - timedelta(days=today.weekday())
     this_week_df = df[(df['日期'].dt.date >= start_of_week) & (df['日期'].dt.date <= today)] if not df.empty else pd.DataFrame()
     today_df = df[df['日期'].dt.date == today] if not df.empty else pd.DataFrame()
+    last_7_days = today - timedelta(days=6)
+    l7_df = df[(df['日期'].dt.date >= last_7_days) & (df['日期'].dt.date <= today)] if not df.empty else pd.DataFrame()
     
+    d_inc = today_df[today_df['類型'] == '收入']['金額'].sum() if not today_df.empty else 0
+    d_hr = today_df[today_df['類型'] == '收入']['上線時數'].sum() if not today_df.empty else 0
+    d_wage = d_inc / d_hr if d_hr > 0 else 0
     w_inc = this_week_df[this_week_df['類型'] == '收入']['金額'].sum() if not this_week_df.empty else 0
-    t_inc = today_df[today_df['類型'] == '收入']['金額'].sum() if not today_df.empty else 0
     
-    c1, c2, c3 = st.columns(3)
+    # 1. 頂部四大指標卡片 (帶有漸層背景)
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
-        with st.container(border=True):
-            st.markdown("<div class='kpi-title'>今日收入 (Today)</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='kpi-value'>${int(t_inc):,}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='kpi-card-green'><div class='kpi-title'>今日收入 (Today)</div><div class='kpi-value'>${int(d_inc):,}</div></div>", unsafe_allow_html=True)
     with c2:
-        with st.container(border=True):
-            st.markdown("<div class='kpi-title'>本週累積 (This Week)</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='kpi-value'>${int(w_inc):,}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='kpi-card-blue'><div class='kpi-title'>今日時薪 (Hourly Rate)</div><div class='kpi-value'>${int(d_wage):,}</div></div>", unsafe_allow_html=True)
     with c3:
+        st.markdown(f"<div class='kpi-card-purple'><div class='kpi-title'>本週累積 (This Week)</div><div class='kpi-value'>${int(w_inc):,}</div></div>", unsafe_allow_html=True)
+    with c4:
+        st.markdown(f"<div class='kpi-card-orange'><div class='kpi-title'>整體投資報酬 (ROI)</div><div class='kpi-value'>1 : {roi:.1f}</div></div>", unsafe_allow_html=True)
+    
+    st.write("")
+
+    # 2. 中間板塊：趨勢圖 與 成就中心
+    col_trend, col_tier = st.columns([2, 1.2])
+    with col_trend:
+        st.markdown("### 📈 近七日收入趨勢")
         with st.container(border=True):
-            st.markdown("<div class='kpi-title'>評級進度 (Tier Progress)</div>", unsafe_allow_html=True)
+            if not l7_df.empty:
+                l7_inc_df = l7_df[l7_df['類型'] == '收入'].groupby('日期')['金額'].sum().reset_index()
+                # 補齊 7 天日期避免斷層
+                date_range = pd.date_range(start=last_7_days, end=today)
+                l7_inc_df = l7_inc_df.set_index('日期').reindex(date_range).fillna(0).reset_index()
+                l7_inc_df.columns = ['日期', '金額']
+                l7_inc_df['日期字串'] = l7_inc_df['日期'].dt.strftime('%m-%d')
+                
+                fig_l7 = px.bar(l7_inc_df, x='日期字串', y='金額', text_auto='.0f')
+                fig_l7.update_traces(marker_color=COLOR_INCOME, textfont_size=12, textangle=0, textposition="outside", cliponaxis=False)
+                fig_l7.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+                    font=dict(color=COLOR_TEXT_SECONDARY), margin=dict(l=0, r=0, t=15, b=0),
+                    xaxis=dict(title="", showgrid=False, type='category'),
+                    yaxis=dict(title="", showgrid=True, gridcolor='#2C2C2E', zeroline=False),
+                    height=260
+                )
+                st.plotly_chart(fig_l7, use_container_width=True, config={'displayModeBar': False})
+            else:
+                st.info("近七日尚無收入紀錄。")
+
+    with col_tier:
+        st.markdown("### 🏆 駕駛成就中心")
+        with st.container(border=True):
+            st.markdown(f"""
+            <div style='display: flex; align-items: center; margin-bottom: 20px;'>
+                <span style='font-size: 45px; margin-right: 15px;'>{d_icon}</span>
+                <div>
+                    <div style='font-size: 22px; font-weight: 700; color: {COLOR_TEXT_PRIMARY};'>{driver_tier}</div>
+                    <div style='font-size: 14px; color: {COLOR_TEXT_SECONDARY};'>{d_title}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             st.progress(prog)
-            st.markdown(f"<div style='font-size:12px; color:{COLOR_TEXT_SECONDARY}; text-align:right; margin-top:5px;'>距離 {next_tier} 差 ${int(next_exp - total_income):,}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='display:flex; justify-content:space-between; font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-top:8px;'><span>累積: ${int(total_income):,}</span><span>距離下級差: ${int(next_exp - total_income):,}</span></div>", unsafe_allow_html=True)
+            
+            st.markdown("<hr style='border-color: #2C2C2E; margin: 15px 0;'>", unsafe_allow_html=True)
+            
+            # 動態智能洞察
+            insight = "穩定發揮，保持這個節奏！繼續累積你的駕駛評級。"
+            if d_wage > 250: insight = "🔥 狀態極佳！今日時薪突破 250 元，堪稱接單大師！"
+            elif d_inc == 0: insight = "🛵 準備好上線了嗎？安全第一，祝你今天單單順路！"
+            elif w_inc > 5000: insight = "🌟 本週累積已突破 5,000 元，距離財務目標又近了一大步！"
+                
+            st.markdown(f"<div style='font-size: 14px; color: {COLOR_BALANCE}; line-height: 1.5;'>💡 系統洞察：<br><span style='color: {COLOR_TEXT_PRIMARY};'>{insight}</span></div>", unsafe_allow_html=True)
+
+    # 3. 底部板塊：最近紀錄
+    st.markdown("### 🕒 最近動態 (Recent Logs)")
+    with st.container(border=True):
+        if not df.empty:
+            recent_df = df.sort_values(by='日期', ascending=False).head(5)
+            recent_html = ""
+            for _, row in recent_df.iterrows():
+                r_date = row['日期'].strftime('%Y-%m-%d')
+                r_type = row['類型']
+                r_item = row['項目']
+                r_amount = row['金額']
+                icon = CATEGORY_ICONS.get(r_item, CATEGORY_ICONS.get(r_type, "📝"))
+                amount_class = "income" if r_type == "收入" else ("expense" if r_type == "開銷" else "")
+                amount_str = f"${int(r_amount):,}" if r_type != '休假' else '休假'
+                sign = "+" if r_type == '收入' else ("-" if r_type == "開銷" else "")
+                
+                recent_html += f"<div class='list-item' style='padding: 10px 0;'>"
+                recent_html += f"<div class='list-icon' style='width:36px; height:36px; font-size:18px;'>{icon}</div>"
+                recent_html += f"<div class='list-content'><div class='list-title' style='font-size: 15px;'>{r_item}</div><div class='list-subtitle'>{r_date} · {r_type}</div></div>"
+                recent_html += f"<div class='list-amount {amount_class}' style='font-size:16px;'>{sign}{amount_str}</div>"
+                recent_html += f"</div>"
+            st.markdown(recent_html, unsafe_allow_html=True)
+        else:
+            st.caption("目前無任何紀錄。")
 
 # ==========================================
 # 分頁：➕ 記一筆 (高密度並排表單)
 # ==========================================
 with tab_add:
-    col1, col2 = st.columns([1.5, 1]) # 左邊表單較寬，右邊日曆較窄
+    col1, col2 = st.columns([1.5, 1])
     
     with col1:
         st.markdown("### 📝 快速記帳 (Quick Log)")
@@ -329,7 +398,6 @@ with tab_add:
                 st.success("✅ 帳本已安全儲存！")
                 st.session_state.show_success = False
             
-            # 第一排：日期與休假
             c_date, c_leave = st.columns([2, 1])
             with c_date:
                 temp_date = st.date_input("🗓️ 紀錄日期", value=st.session_state.selected_date)
@@ -344,7 +412,6 @@ with tab_add:
                 st.divider()
                 st.markdown("##### 💰 營業收入與時數")
                 
-                # 第二排：收入模式與金額 (三欄並排)
                 c_mod, c_p1, c_p2 = st.columns([1, 1, 1])
                 platform_mode = c_mod.radio("模式", ["單一", "雙開"], horizontal=True)
                 
@@ -358,7 +425,6 @@ with tab_add:
                     amount_u = c_p1.number_input("Uber Eats ($)", min_value=0, step=10, value=None, key=f"amtu_{k}")
                     amount_f = c_p2.number_input("Foodpanda ($)", min_value=0, step=10, value=None, key=f"amtf_{k}")
                 
-                # 第三排：時數計算 (三欄並排)
                 c_tmod, c_t1, c_t2 = st.columns([1, 1, 1])
                 time_mode = c_tmod.radio("時數", ["手動", "首末單", "反推"], horizontal=True)
                 hours = 0.0
@@ -368,15 +434,15 @@ with tab_add:
                     input_minutes = c_t2.number_input("分", min_value=0, max_value=59, step=1, value=None, key=f"min_{k}")
                     hours = round((input_hours or 0) + ((input_minutes or 0) / 60.0), 2)
                 elif time_mode == "首末單":
-                    start_time = c_t1.time_input("首單時間", time(10, 0), key=f"t1_{k}") 
-                    end_time = c_t2.time_input("末單時間", time(22, 0), key=f"t2_{k}")   
+                    start_time = c_t1.time_input("首單", time(10, 0), key=f"t1_{k}") 
+                    end_time = c_t2.time_input("末單", time(22, 0), key=f"t2_{k}")   
                     dt_start, dt_end = datetime.combine(date(2000, 1, 1), start_time), datetime.combine(date(2000, 1, 1), end_time)
                     if dt_end < dt_start: dt_end += timedelta(days=1)
                     hours = round((dt_end - dt_start).total_seconds() / 3600.0, 2)
                     c_tmod.caption(f"⏱️ {hours} h")
                 else: 
-                    remain_hours = c_t1.number_input("剩餘時", min_value=0, max_value=12, step=1, value=None, key=f"r_hr_{k}")
-                    remain_minutes = c_t2.number_input("剩餘分", min_value=0, max_value=59, step=1, value=None, key=f"r_min_{k}")
+                    remain_hours = c_t1.number_input("剩時", min_value=0, max_value=12, step=1, value=None, key=f"r_hr_{k}")
+                    remain_minutes = c_t2.number_input("剩分", min_value=0, max_value=59, step=1, value=None, key=f"r_min_{k}")
                     if remain_hours is not None or remain_minutes is not None:
                         used_mins = max(0, 720 - ((remain_hours or 0) * 60 + (remain_minutes or 0)))
                         hours = round(used_mins / 60.0, 2)
@@ -386,14 +452,12 @@ with tab_add:
                 st.divider()
                 st.markdown("##### 💸 開銷與備註")
                 
-                # 第四排：開銷與備註 (四欄並排)
                 c_e1, c_e2, c_e3, c_e4 = st.columns([1, 1, 1, 1])
                 gas_exp = c_e1.number_input("⛽ 油錢", min_value=0, step=10, value=None, key=f"gas_{k}")
                 maint_exp = c_e2.number_input("🔧 保養", min_value=0, step=10, value=None, key=f"maint_{k}")
                 other_name = c_e3.text_input("📦 其他名稱", placeholder="雨衣", key=f"oname_{k}")
                 other_exp = c_e4.number_input("📦 其他金額", min_value=0, step=10, value=None, key=f"oexp_{k}")
                 
-                # 第五排：備註與儲存
                 c_n1, c_n2, c_sub = st.columns([2, 1, 1])
                 note = c_n1.text_input("備註", placeholder="輸入心得...", label_visibility="collapsed", key=f"note_{k}")
                 is_incident = c_n2.checkbox("⚠️ 異常狀況", key=f"trib_{k}")
@@ -403,8 +467,7 @@ with tab_add:
                     val_amount = amount if platform_mode == "單一" else ((amount_u or 0) + (amount_f or 0))
                     
                     if val_amount > 0:
-                        if platform_mode == "單一":
-                            rows_to_add.append([str(record_date), "收入", item, int(amount), hours, note, str(is_incident)])
+                        if platform_mode == "單一": rows_to_add.append([str(record_date), "收入", item, int(amount), hours, note, str(is_incident)])
                         else:
                             if (amount_u or 0) > 0: rows_to_add.append([str(record_date), "收入", "Uber Eats", int(amount_u), hours, note, str(is_incident)])
                             if (amount_f or 0) > 0: rows_to_add.append([str(record_date), "收入", "Foodpanda", int(amount_f), 0.0, note, str(is_incident)])
@@ -420,8 +483,7 @@ with tab_add:
                         st.session_state.show_success = True
                         st.session_state.input_key += 1
                         st.rerun()
-                    else:
-                        st.warning("請輸入有效資料！")
+                    else: st.warning("請輸入有效資料！")
             else:
                 note = st.text_input("休假備註", placeholder="放鬆一下...", key=f"note_{k}")
                 if st.button("🚀 儲存休假", type="primary", use_container_width=True):
@@ -495,7 +557,7 @@ with tab_add:
                         st.rerun()
 
 # ==========================================
-# 分頁：📈 報表 (Analytics) - 徹底修復空白容器
+# 分頁：📈 報表 (Analytics) - HTML 完全無縮排防雷版
 # ==========================================
 with tab_report:
     if not df.empty:
@@ -521,39 +583,23 @@ with tab_report:
             m_balance = m_inc - m_exp
             
             # 頂部三大指標
-            st.markdown(f"""
-            <div class='pro-card' style='background: linear-gradient(135deg, {COLOR_CARD_BG} 0%, #2C2C2E 100%); padding: 25px;'>
-                <div class='kpi-container'>
-                    <div class='kpi-item'><div class='kpi-title'>月總收入</div><div class='kpi-value income'>${int(m_inc):,}</div></div>
-                    <div style='width: 1px; height: 50px; background-color: rgba(255,255,255,0.1);'></div>
-                    <div class='kpi-item'><div class='kpi-title'>月淨結餘</div><div class='kpi-value balance' style='font-size: 36px;'>${int(m_balance):,}</div></div>
-                    <div style='width: 1px; height: 50px; background-color: rgba(255,255,255,0.1);'></div>
-                    <div class='kpi-item'><div class='kpi-title'>月總支出</div><div class='kpi-value expense'>${int(m_exp):,}</div></div>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"<div class='pro-card' style='background: linear-gradient(135deg, {COLOR_CARD_BG} 0%, #2C2C2E 100%); padding: 25px;'><div class='kpi-container'><div class='kpi-item'><div class='kpi-title'>月總收入</div><div class='kpi-value income'>${int(m_inc):,}</div></div><div style='width: 1px; height: 50px; background-color: rgba(255,255,255,0.1);'></div><div class='kpi-item'><div class='kpi-title'>月淨結餘</div><div class='kpi-value balance' style='font-size: 36px;'>${int(m_balance):,}</div></div><div style='width: 1px; height: 50px; background-color: rgba(255,255,255,0.1);'></div><div class='kpi-item'><div class='kpi-title'>月總支出</div><div class='kpi-value expense'>${int(m_exp):,}</div></div></div>", unsafe_allow_html=True)
             
             if current_target > 0:
                 progress_val = min(m_inc / current_target, 1.0)
                 rem = current_target - m_inc
-                st.markdown(f"""
-                    <div style='margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;'>
-                        <div style='display:flex; justify-content:space-between; font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-bottom:8px; font-weight:600;'>
-                            <span>🎯 收入目標進度：${int(m_inc):,} / ${current_target:,}</span>
-                            <span>{int(progress_val*100)}%</span>
-                        </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"<div style='margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;'><div style='display:flex; justify-content:space-between; font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-bottom:8px; font-weight:600;'><span>🎯 收入目標進度：${int(m_inc):,} / ${current_target:,}</span><span>{int(progress_val*100)}%</span></div>", unsafe_allow_html=True)
                 st.progress(progress_val)
                 if rem > 0: st.markdown(f"<div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; text-align:right; margin-top:6px;'>距離目標還差 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>${int(rem):,}</span></div>", unsafe_allow_html=True)
                 else: st.markdown(f"<div style='font-size:13px; color:{COLOR_INCOME}; text-align:right; margin-top:6px; font-weight:700;'>🎉 已達成設定目標！</div>", unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # 💡 修復：完美避開 HTML 渲染地雷的 Streamlit 原生並排
             col_pie, col_list = st.columns([1, 1.2])
 
             with col_pie:
                 st.markdown("#### 收支分析")
-                with st.container(border=True): # 使用原生 container 避免破圖
+                with st.container(border=True):
                     pie_data = [
                         {"label": "總收入", "value": m_inc, "color": COLOR_INCOME},
                         {"label": "總支出", "value": m_exp, "color": COLOR_EXPENSE}
@@ -576,7 +622,7 @@ with tab_report:
 
             with col_list:
                 st.markdown("#### 分類明細")
-                # 💡 修復：將所有明細打包成單一 HTML 字串，放在具有滾動條的 div 內一次性渲染
+                # 💡 修復：嚴格將所有 HTML 濃縮為單行組裝，徹底阻絕 Markdown Code Block 渲染問題
                 category_df = month_df[month_df['類型'] != '休假'].groupby(['類型', '項目'])['金額'].sum().reset_index()
                 category_df = category_df.sort_values(by='金額', ascending=False)
                 
@@ -587,17 +633,7 @@ with tab_report:
                     c_amount = row['金額']
                     icon = CATEGORY_ICONS.get(c_item, CATEGORY_ICONS.get(c_type, "📊"))
                     amount_class = "income" if c_type == "收入" else "expense"
-                    
-                    html_list += f"""
-                    <div class='list-item'>
-                        <div class='list-icon'>{icon}</div>
-                        <div class='list-content'>
-                            <div class='list-title'>{c_item}</div>
-                            <div class='list-subtitle'>{c_type}</div>
-                        </div>
-                        <div class='list-amount {amount_class}'>${int(c_amount):,}</div>
-                    </div>
-                    """
+                    html_list += f"<div class='list-item'><div class='list-icon'>{icon}</div><div class='list-content'><div class='list-title'>{c_item}</div><div class='list-subtitle'>{c_type}</div></div><div class='list-amount {amount_class}'>${int(c_amount):,}</div></div>"
                 html_list += "</div>"
                 
                 with st.container(border=True):
