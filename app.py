@@ -448,6 +448,31 @@ elif page == "➕ 記一筆 (Add Log)":
     with col2:
         with st.container(border=True):
             st.markdown("#### 📅 當日明細總覽") 
+            
+            # --- 恢復：打卡日曆區塊 ---
+            work_dates = set(df[(df['類型'] == '收入') | (df['類型'] == '開銷')]['日期'].dt.date) if not df.empty else set()
+            off_dates = set(df[df['類型'] == '休假']['日期'].dt.date) if not df.empty else set()
+            
+            cal_year, cal_month = st.session_state.selected_date.year, st.session_state.selected_date.month
+            cal_matrix = calendar.monthcalendar(cal_year, cal_month)
+            st.markdown(f"<h5 style='text-align:center; color:#8E8E93; margin-top:5px; margin-bottom:15px;'>{cal_year} - {cal_month:02d} 打卡月曆</h5>", unsafe_allow_html=True)
+            
+            cols = st.columns(7)
+            for i, wd in enumerate(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]): 
+                cols[i].markdown(f"<div style='text-align: center; color:#8E8E93; font-size:12px;'><b>{wd}</b></div>", unsafe_allow_html=True)
+            for week in cal_matrix:
+                cols = st.columns(7)
+                for i, day in enumerate(week):
+                    if day != 0:
+                        cur_d = date(cal_year, cal_month, day)
+                        is_sel = (cur_d == st.session_state.selected_date)
+                        btn_type = "primary" if is_sel else "secondary"
+                        btn_label = f"{day}🏖️" if cur_d in off_dates else (f"{day}✅" if cur_d in work_dates else str(day))
+                        cols[i].button(btn_label, key=f"cal_{cal_year}_{cal_month}_{day}_{k}", use_container_width=True, type=btn_type, on_click=change_date, args=(cur_d,))
+            
+            st.divider()
+            # ------------------------
+
             if not df.empty:
                 daily_df = df[df['日期'].dt.date == st.session_state.selected_date]
                 if not daily_df.empty:
