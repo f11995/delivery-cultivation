@@ -9,7 +9,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # ==========================================
-# ⚙️ 系統常數與專業設定 (已完美補回所有常數)
+# ⚙️ 系統常數與專業設定
 # ==========================================
 COLOR_INCOME = "#06C167"
 COLOR_EXPENSE = "#FF453A"
@@ -54,7 +54,7 @@ DRIVER_TIERS = [
 ]
 
 # ==========================================
-# 🌐 單機版專屬資料庫引擎 (極速、無冗餘)
+# 🌐 單機版專屬資料庫引擎
 # ==========================================
 @st.cache_resource
 def get_gspread_client():
@@ -154,71 +154,70 @@ def change_date(new_date):
     st.session_state.selected_date = new_date
 
 # ==========================================
-# 🎨 頂級 App 視覺樣式
+# 🎨 頂級桌面版 App 視覺樣式
 # ==========================================
 st.set_page_config(page_title="Delivery Pro", layout="wide", page_icon="📊")
 st.markdown(f"""
 <style>
-    /* 全局設定 */
     .stApp {{ background-color: {COLOR_BG}; color: {COLOR_TEXT_PRIMARY}; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }}
-    .block-container {{ padding-top: 1rem; padding-bottom: 5rem; max-width: 1200px; }}
+    .block-container {{ padding-top: 2rem; padding-bottom: 5rem; max-width: 1400px; }}
     h1, h2, h3, h4 {{ font-weight: 700; letter-spacing: -0.5px; }}
     
-    /* 隱藏預設按鈕與 Header */
     header[data-testid="stHeader"] {{ background: transparent !important; }}
     footer {{ visibility: hidden; }}
 
-    /* 重新設計的卡片容器 */
-    .pro-card {{
-        background-color: {COLOR_CARD_BG};
-        border-radius: 16px;
-        padding: 20px;
-        margin-bottom: 16px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+    /* 頂部標籤頁 Tabs 樣式重構 */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 20px;
+        background-color: transparent;
+        border-bottom: 2px solid #2C2C2E;
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        color: {COLOR_TEXT_SECONDARY};
+        font-weight: 600;
+        font-size: 18px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid transparent;
+    }}
+    .stTabs [aria-selected="true"] {{
+        color: {COLOR_INCOME} !important;
+        border-bottom: 2px solid {COLOR_INCOME} !important;
     }}
 
-    /* 關鍵指標設計 (KPI) */
+    div[data-testid="stVerticalBlockBorderWrapper"] {{
+        background-color: {COLOR_CARD_BG} !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        border-radius: 16px !important;
+        padding: 1.5rem !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+    }}
+
     .kpi-container {{ display: flex; justify-content: space-between; align-items: center; }}
     .kpi-item {{ text-align: center; flex: 1; }}
-    .kpi-title {{ font-size: 13px; font-weight: 600; color: {COLOR_TEXT_SECONDARY}; margin-bottom: 6px; }}
-    .kpi-value {{ font-size: 28px; font-weight: 700; color: {COLOR_TEXT_PRIMARY}; line-height: 1.1; }}
+    .kpi-title {{ font-size: 14px; font-weight: 600; color: {COLOR_TEXT_SECONDARY}; margin-bottom: 6px; }}
+    .kpi-value {{ font-size: 32px; font-weight: 700; color: {COLOR_TEXT_PRIMARY}; line-height: 1.1; }}
     .kpi-value.income {{ color: {COLOR_INCOME}; }}
     .kpi-value.expense {{ color: {COLOR_EXPENSE}; }}
     .kpi-value.balance {{ color: {COLOR_BALANCE}; }}
 
-    /* 列表樣式 */
-    .list-item {{ display: flex; align-items: center; padding: 16px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }}
+    .list-item {{ display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }}
     .list-item:last-child {{ border-bottom: none; }}
-    .list-icon {{ font-size: 24px; margin-right: 16px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background-color: rgba(255, 255, 255, 0.05); border-radius: 50%; }}
-    .list-content {{ flex-grow: 1; }}
-    .list-title {{ font-size: 16px; font-weight: 600; color: {COLOR_TEXT_PRIMARY}; }}
-    .list-subtitle {{ font-size: 13px; color: {COLOR_TEXT_SECONDARY}; margin-top: 2px; }}
-    .list-amount {{ font-size: 18px; font-weight: 700; text-align: right; }}
+    .list-icon {{ font-size: 22px; margin-right: 16px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; background-color: rgba(255, 255, 255, 0.05); border-radius: 50%; }}
+    .list-content {{ flex-grow: 1; line-height: 1.2; }}
+    .list-title {{ font-size: 15px; font-weight: 600; color: {COLOR_TEXT_PRIMARY}; }}
+    .list-subtitle {{ font-size: 12px; color: {COLOR_TEXT_SECONDARY}; margin-top: 4px; }}
+    .list-amount {{ font-size: 16px; font-weight: 700; text-align: right; }}
     .list-amount.income {{ color: {COLOR_INCOME}; }}
     .list-amount.expense {{ color: {COLOR_EXPENSE}; }}
 
-    /* 側邊欄與按鈕設計 */
-    section[data-testid="stSidebar"] {{ background-color: #09090B !important; border-right: 1px solid #2C2C2E; }}
-    .sidebar-brand {{ font-size: 24px; font-weight: 800; color: #FFFFFF; margin-bottom: 30px; padding-left: 5px; }}
-    .sidebar-brand span {{ color: {COLOR_INCOME}; }}
-    
-    div[data-testid="stRadio"] > div[role="radiogroup"] {{ gap: 10px; }}
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label {{
-        background-color: rgba(255, 255, 255, 0.03); padding: 14px 18px; border-radius: 12px; border: 1px solid transparent; transition: all 0.2s ease; width: 100%;
-    }}
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label:hover {{ background-color: rgba(255, 255, 255, 0.08); }}
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label[data-checked="true"] {{ background-color: rgba(6, 193, 103, 0.15); border-color: {COLOR_INCOME}; }}
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label > div:first-child {{ display: none; }}
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label > div:nth-child(2) > p {{ font-size: 16px !important; font-weight: 600 !important; color: {COLOR_TEXT_SECONDARY} !important; margin: 0 !important; }}
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label[data-checked="true"] > div:nth-child(2) > p {{ color: #FFFFFF !important; }}
-
-    /* 日曆與進度條 */
-    div[data-testid="stDateInput"] > div {{ border-radius: 12px; overflow: hidden; border: none; }}
+    div[data-testid="stDateInput"] > div {{ border-radius: 8px; overflow: hidden; border: none; }}
     button[kind="primary"] {{ background-color: {COLOR_INCOME} !important; border: none; font-weight: 600; color: white !important;}}
     button[kind="secondary"] {{ background-color: rgba(255, 255, 255, 0.05) !important; border: none; color: {COLOR_TEXT_SECONDARY}; }}
     .stProgress > div > div > div > div {{ background-color: #06C167; }}
     .js-plotly-plot .plotly .bg {{ fill: transparent !important; }}
+    
+    /* 縮小日曆按鈕間距 */
+    div[data-testid="column"] {{ padding: 0 2px; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -234,7 +233,7 @@ if not st.session_state.authenticated:
         <h1 style='color: #FFFFFF; font-size: 48px; font-weight:800; letter-spacing:-1px; margin-bottom: 8px;'>
             Delivery <span style='color:{COLOR_INCOME};'>Pro</span>
         </h1>
-        <p style='color:{COLOR_TEXT_SECONDARY}; font-size: 16px; font-weight: 500;'>Personal Courier Analytics</p>
+        <p style='color:{COLOR_TEXT_SECONDARY}; font-size: 16px; font-weight: 500;'>Professional Desktop Analytics</p>
     </div>
     <br><br>
     """, unsafe_allow_html=True)
@@ -267,121 +266,144 @@ today = date.today()
 # 計算終身數據
 total_income = df[df['類型'] == '收入']['金額'].sum() if not df.empty else 0
 total_hours = df[df['類型'] == '收入']['上線時數'].sum() if not df.empty else 0.0
+total_gas_maint = df[(df['類型'] == '開銷') & (df['項目'].isin(['機車油錢', '機車保養']))]['金額'].sum() if not df.empty else 0
 
-# ==========================================
-# 側邊欄導覽
-# ==========================================
-with st.sidebar:
-    st.markdown(f"<div class='sidebar-brand'>Delivery <span>Pro</span></div>", unsafe_allow_html=True)
-    
-    page = st.radio("Navigation", ["➕ 記一筆 (Add Log)", "📈 報表 (Analytics)", "⚙️ 設定 (Settings)"], label_visibility="collapsed")
-    
-    st.divider()
+roi = (total_income / total_gas_maint) if total_gas_maint > 0 else total_income
+driver_tier, next_tier, next_exp, prog, d_title, d_icon = get_driver_tier_info(total_income)
+
+# 頂部標題與狀態列 (取代舊的側邊欄)
+col_title, col_sync = st.columns([4, 1])
+with col_title:
     st.markdown(f"""
-    <div style='color:{COLOR_TEXT_SECONDARY}; font-size:12px; font-weight: 600; margin-top:15px; margin-bottom:5px;'>LIFETIME REVENUE</div>
-    <div style='font-size:24px; font-weight:800; color:{COLOR_INCOME};'>${int(total_income):,}</div>
+    <h2 style='margin:0;'>Delivery <span style='color:{COLOR_INCOME};'>Pro</span> 
+    <span style='font-size:16px; color:{COLOR_TEXT_SECONDARY}; font-weight:500; margin-left:15px;'>
+    {d_icon} 評級: {driver_tier} &nbsp;|&nbsp; 💰 終身收入: ${int(total_income):,} &nbsp;|&nbsp; 📈 ROI: 1:{roi:.1f}
+    </span></h2>
     """, unsafe_allow_html=True)
-    
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    if st.button("🔄 強制同步 (Sync)", use_container_width=True):
+with col_sync:
+    if st.button("🔄 同步數據", use_container_width=True):
         load_data.clear()
         load_settings.clear()
         st.rerun()
+st.write("")
+
+# 建立頂部分頁 (Tabs)
+tab_dash, tab_add, tab_report, tab_settings = st.tabs(["📊 總覽 (Dashboard)", "➕ 記一筆 (Add Log)", "📈 報表 (Analytics)", "⚙️ 設定 (Settings)"])
 
 # ==========================================
-# 頁面內容：➕ 記一筆 (經典打卡月曆 + 秒速表單)
+# 分頁：📊 總覽 (Dashboard)
 # ==========================================
-if page == "➕ 記一筆 (Add Log)":
-    col1, col2 = st.columns([1, 1.2])
+with tab_dash:
+    start_of_week = today - timedelta(days=today.weekday())
+    this_week_df = df[(df['日期'].dt.date >= start_of_week) & (df['日期'].dt.date <= today)] if not df.empty else pd.DataFrame()
+    today_df = df[df['日期'].dt.date == today] if not df.empty else pd.DataFrame()
     
-    # ------------------ 左側：秒速記帳區 ------------------
+    w_inc = this_week_df[this_week_df['類型'] == '收入']['金額'].sum() if not this_week_df.empty else 0
+    t_inc = today_df[today_df['類型'] == '收入']['金額'].sum() if not today_df.empty else 0
+    
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        with st.container(border=True):
+            st.markdown("<div class='kpi-title'>今日收入 (Today)</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='kpi-value'>${int(t_inc):,}</div>", unsafe_allow_html=True)
+    with c2:
+        with st.container(border=True):
+            st.markdown("<div class='kpi-title'>本週累積 (This Week)</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='kpi-value'>${int(w_inc):,}</div>", unsafe_allow_html=True)
+    with c3:
+        with st.container(border=True):
+            st.markdown("<div class='kpi-title'>評級進度 (Tier Progress)</div>", unsafe_allow_html=True)
+            st.progress(prog)
+            st.markdown(f"<div style='font-size:12px; color:{COLOR_TEXT_SECONDARY}; text-align:right; margin-top:5px;'>距離 {next_tier} 差 ${int(next_exp - total_income):,}</div>", unsafe_allow_html=True)
+
+# ==========================================
+# 分頁：➕ 記一筆 (高密度並排表單)
+# ==========================================
+with tab_add:
+    col1, col2 = st.columns([1.5, 1]) # 左邊表單較寬，右邊日曆較窄
+    
     with col1:
-        st.markdown("### 📝 新增紀錄 (Quick Log)")
+        st.markdown("### 📝 快速記帳 (Quick Log)")
         with st.container(border=True):
             if st.session_state.show_success: 
                 st.success("✅ 帳本已安全儲存！")
                 st.session_state.show_success = False
             
-            # 日期與狀態
-            temp_date = st.date_input("選擇紀錄日期", value=st.session_state.selected_date)
-            if temp_date != st.session_state.selected_date: st.session_state.selected_date = temp_date; st.rerun()
-            record_date = st.session_state.selected_date
-            
-            is_leave = st.checkbox("🏖️ 標記今日為「休假」 (勾選後直接按儲存)", value=False)
-            st.write("---")
+            # 第一排：日期與休假
+            c_date, c_leave = st.columns([2, 1])
+            with c_date:
+                temp_date = st.date_input("🗓️ 紀錄日期", value=st.session_state.selected_date)
+                if temp_date != st.session_state.selected_date: st.session_state.selected_date = temp_date; st.rerun()
+                record_date = st.session_state.selected_date
+            with c_leave:
+                st.write("")
+                st.write("")
+                is_leave = st.checkbox("🏖️ 標記為「休假」", value=False)
     
             if not is_leave:
-                # 收入與時數
-                st.markdown("##### 💰 收入與時數")
-                platform_mode = st.radio("平台模式", ["單一平台", "雙開合併"], horizontal=True)
+                st.divider()
+                st.markdown("##### 💰 營業收入與時數")
+                
+                # 第二排：收入模式與金額 (三欄並排)
+                c_mod, c_p1, c_p2 = st.columns([1, 1, 1])
+                platform_mode = c_mod.radio("模式", ["單一", "雙開"], horizontal=True)
                 
                 amount, amount_u, amount_f = 0, 0, 0
                 item = "Uber Eats"
+                
+                if platform_mode == "單一":
+                    item = c_p1.selectbox("平台", ["Uber Eats", "Foodpanda", "其他獎金"])
+                    amount = c_p2.number_input("金額 ($)", min_value=0, step=10, value=None, key=f"amt_{k}")
+                else:
+                    amount_u = c_p1.number_input("Uber Eats ($)", min_value=0, step=10, value=None, key=f"amtu_{k}")
+                    amount_f = c_p2.number_input("Foodpanda ($)", min_value=0, step=10, value=None, key=f"amtf_{k}")
+                
+                # 第三排：時數計算 (三欄並排)
+                c_tmod, c_t1, c_t2 = st.columns([1, 1, 1])
+                time_mode = c_tmod.radio("時數", ["手動", "首末單", "反推"], horizontal=True)
                 hours = 0.0
                 
-                if platform_mode == "單一平台":
-                    c_plat1, c_plat2 = st.columns([3, 2])
-                    with c_plat1: item = st.selectbox("平台", ["Uber Eats", "Foodpanda", "其他獎金"], label_visibility="collapsed")
-                    with c_plat2: amount = st.number_input("金額", min_value=0, step=10, value=None, key=f"amt_{k}", label_visibility="collapsed", placeholder="$ TWD")
-                else:
-                    c_plat1, c_plat2 = st.columns(2)
-                    with c_plat1: amount_u = st.number_input("Uber Eats $", min_value=0, step=10, value=None, key=f"amtu_{k}")
-                    with c_plat2: amount_f = st.number_input("Foodpanda $", min_value=0, step=10, value=None, key=f"amtf_{k}")
-                
-                st.write("")
-                time_mode = st.radio("時數計算", ["APP 剩餘時間反推 (12H制)", "手動輸入", "系統換算"], horizontal=True)
-                
-                if time_mode == "系統換算":
-                    t_col1, t_col2 = st.columns(2)
-                    with t_col1: start_time = st.time_input("首單時間", time(10, 0), key=f"t1_{k}") 
-                    with t_col2: end_time = st.time_input("末單時間", time(22, 0), key=f"t2_{k}")   
+                if time_mode == "手動":
+                    input_hours = c_t1.number_input("時", min_value=0, step=1, value=None, key=f"hr_{k}")
+                    input_minutes = c_t2.number_input("分", min_value=0, max_value=59, step=1, value=None, key=f"min_{k}")
+                    hours = round((input_hours or 0) + ((input_minutes or 0) / 60.0), 2)
+                elif time_mode == "首末單":
+                    start_time = c_t1.time_input("首單時間", time(10, 0), key=f"t1_{k}") 
+                    end_time = c_t2.time_input("末單時間", time(22, 0), key=f"t2_{k}")   
                     dt_start, dt_end = datetime.combine(date(2000, 1, 1), start_time), datetime.combine(date(2000, 1, 1), end_time)
                     if dt_end < dt_start: dt_end += timedelta(days=1)
                     hours = round((dt_end - dt_start).total_seconds() / 3600.0, 2)
-                    st.info(f"⏱️ 換算實際上線：**{hours} h**")
-                elif time_mode == "手動輸入":
-                    h_col, m_col = st.columns(2)
-                    with h_col: input_hours = st.number_input("時 (Hours)", min_value=0, step=1, value=None, key=f"hr_{k}")
-                    with m_col: input_minutes = st.number_input("分 (Minutes)", min_value=0, max_value=59, step=1, value=None, key=f"min_{k}")
-                    hours = round((input_hours or 0) + ((input_minutes or 0) / 60.0), 2)
+                    c_tmod.caption(f"⏱️ {hours} h")
                 else: 
-                    st.caption("💡 輸入 APP 顯示的「剩餘駕駛時間」反推：")
-                    h_col, m_col = st.columns(2)
-                    with h_col: remain_hours = st.number_input("剩餘 小時", min_value=0, max_value=12, step=1, value=None, key=f"r_hr_{k}")
-                    with m_col: remain_minutes = st.number_input("剩餘 分鐘", min_value=0, max_value=59, step=1, value=None, key=f"r_min_{k}")
+                    remain_hours = c_t1.number_input("剩餘時", min_value=0, max_value=12, step=1, value=None, key=f"r_hr_{k}")
+                    remain_minutes = c_t2.number_input("剩餘分", min_value=0, max_value=59, step=1, value=None, key=f"r_min_{k}")
                     if remain_hours is not None or remain_minutes is not None:
-                        r_h = remain_hours or 0
-                        r_m = remain_minutes or 0
-                        used_mins = max(0, 720 - (r_h * 60 + r_m))
+                        used_mins = max(0, 720 - ((remain_hours or 0) * 60 + (remain_minutes or 0)))
                         hours = round(used_mins / 60.0, 2)
-                        st.info(f"⏱️ 反推上線：**{hours} h** (約 {used_mins // 60}h {used_mins % 60}m)")
+                        c_tmod.caption(f"⏱️ {hours} h")
                     else: hours = 0.0
 
-                st.write("---")
+                st.divider()
+                st.markdown("##### 💸 開銷與備註")
                 
-                # 開銷
-                st.markdown("##### 💸 開銷 (選填)")
-                c_exp1, c_exp2 = st.columns(2)
-                with c_exp1: gas_exp = st.number_input("⛽ 油錢", min_value=0, step=10, value=None, key=f"gas_{k}")
-                with c_exp2: maint_exp = st.number_input("🔧 保養", min_value=0, step=10, value=None, key=f"maint_{k}")
-                c_exp3, c_exp4 = st.columns(2)
-                with c_exp3: other_name = st.text_input("其他名稱", placeholder="如:雨衣", key=f"oname_{k}")
-                with c_exp4: other_exp = st.number_input("金額", min_value=0, step=10, value=None, key=f"oexp_{k}")
+                # 第四排：開銷與備註 (四欄並排)
+                c_e1, c_e2, c_e3, c_e4 = st.columns([1, 1, 1, 1])
+                gas_exp = c_e1.number_input("⛽ 油錢", min_value=0, step=10, value=None, key=f"gas_{k}")
+                maint_exp = c_e2.number_input("🔧 保養", min_value=0, step=10, value=None, key=f"maint_{k}")
+                other_name = c_e3.text_input("📦 其他名稱", placeholder="雨衣", key=f"oname_{k}")
+                other_exp = c_e4.number_input("📦 其他金額", min_value=0, step=10, value=None, key=f"oexp_{k}")
                 
-                st.write("---")
+                # 第五排：備註與儲存
+                c_n1, c_n2, c_sub = st.columns([2, 1, 1])
+                note = c_n1.text_input("備註", placeholder="輸入心得...", label_visibility="collapsed", key=f"note_{k}")
+                is_incident = c_n2.checkbox("⚠️ 異常狀況", key=f"trib_{k}")
                 
-                # 備註
-                st.markdown("##### 📝 異常與備註")
-                is_incident = st.checkbox("⚠️ 標記異常 (奧客/車損/惡劣天氣)", key=f"trib_{k}")
-                note = st.text_input("今日備註", value="", placeholder="輸入心得...", key=f"note_{k}")
-                
-                st.write("")
-                if st.button("🚀 一鍵儲存今日帳本", type="primary", use_container_width=True):
+                if c_sub.button("🚀 儲存", type="primary", use_container_width=True):
                     rows_to_add = []
-                    val_amount = amount if platform_mode == "單一平台" else ((amount_u or 0) + (amount_f or 0))
+                    val_amount = amount if platform_mode == "單一" else ((amount_u or 0) + (amount_f or 0))
                     
                     if val_amount > 0:
-                        if platform_mode == "單一平台":
+                        if platform_mode == "單一":
                             rows_to_add.append([str(record_date), "收入", item, int(amount), hours, note, str(is_incident)])
                         else:
                             if (amount_u or 0) > 0: rows_to_add.append([str(record_date), "收入", "Uber Eats", int(amount_u), hours, note, str(is_incident)])
@@ -399,10 +421,9 @@ if page == "➕ 記一筆 (Add Log)":
                         st.session_state.input_key += 1
                         st.rerun()
                     else:
-                        st.warning("請至少輸入一筆有效的資料！")
+                        st.warning("請輸入有效資料！")
             else:
                 note = st.text_input("休假備註", placeholder="放鬆一下...", key=f"note_{k}")
-                st.write("")
                 if st.button("🚀 儲存休假", type="primary", use_container_width=True):
                     save_data_batch([[str(record_date), "休假", "休假", 0, 0.0, note, "False"]])
                     st.session_state.show_success = True
@@ -413,7 +434,6 @@ if page == "➕ 記一筆 (Add Log)":
     with col2:
         st.markdown("### 📅 當日表現與打卡")
         
-        # 1. 四大指標
         daily_df = df[df['日期'].dt.date == st.session_state.selected_date] if not df.empty else pd.DataFrame()
         d_inc = daily_df[daily_df['類型'] == '收入']['金額'].sum() if not daily_df.empty else 0
         d_exp = daily_df[daily_df['類型'] == '開銷']['金額'].sum() if not daily_df.empty else 0
@@ -427,12 +447,11 @@ if page == "➕ 記一筆 (Add Log)":
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("當日收入", f"${int(d_inc):,}")
         m2.metric("當日開銷", f"${int(d_exp):,}")
-        m3.metric("當日上線", f"{d_hr:.1f} h") 
-        m4.metric("當日時薪", f"${int(d_wage):,.0f}")
+        m3.metric("當日上線", f"{d_hr:.1f}h") 
+        m4.metric("當日時薪", f"${int(d_wage):,}")
         
         st.write("---")
         
-        # 2. 打卡月曆矩陣
         work_dates = set(df[(df['類型'] == '收入') | (df['類型'] == '開銷')]['日期'].dt.date) if not df.empty else set()
         off_dates = set(df[df['類型'] == '休假']['日期'].dt.date) if not df.empty else set()
         
@@ -440,11 +459,11 @@ if page == "➕ 記一筆 (Add Log)":
         cal_month = st.session_state.selected_date.month
         cal_matrix = calendar.monthcalendar(cal_year, cal_month)
         
-        st.markdown(f"<h5 style='text-align:center; color:{COLOR_TEXT_PRIMARY}; margin-bottom:15px;'>👉 {cal_year}年 {cal_month:02d}月</h5>", unsafe_allow_html=True)
+        st.markdown(f"<h5 style='text-align:center; color:{COLOR_TEXT_PRIMARY}; margin-bottom:10px;'>👉 {cal_year}年 {cal_month:02d}月</h5>", unsafe_allow_html=True)
         
         cols = st.columns(7)
         for i, wd in enumerate(["一", "二", "三", "四", "五", "六", "日"]): 
-            cols[i].markdown(f"<div style='text-align: center; color:{COLOR_TEXT_SECONDARY}; font-size:14px; font-weight:600;'>{wd}</div>", unsafe_allow_html=True)
+            cols[i].markdown(f"<div style='text-align: center; color:{COLOR_TEXT_SECONDARY}; font-size:13px; font-weight:600;'>{wd}</div>", unsafe_allow_html=True)
         
         for week in cal_matrix:
             cols = st.columns(7)
@@ -454,23 +473,12 @@ if page == "➕ 記一筆 (Add Log)":
                     is_sel = (cur_d == st.session_state.selected_date)
                     btn_type = "primary" if is_sel else "secondary"
                     
-                    if cur_d in off_dates:
-                        b_label = f"{day}🏖️"
-                    elif cur_d in work_dates:
-                        b_label = f"{day}✅"
-                    else:
-                        b_label = str(day)
+                    if cur_d in off_dates: b_label = f"{day}🏖️"
+                    elif cur_d in work_dates: b_label = f"{day}✅"
+                    else: b_label = str(day)
                         
-                    cols[i].button(
-                        label=b_label, 
-                        key=f"cal_{cal_year}_{cal_month}_{day}_{k}", 
-                        use_container_width=True, 
-                        type=btn_type, 
-                        on_click=change_date, 
-                        args=(cur_d,)
-                    )
+                    cols[i].button(label=b_label, key=f"cal_{cal_year}_{cal_month}_{day}_{k}", use_container_width=True, type=btn_type, on_click=change_date, args=(cur_d,))
 
-        # 3. 歷史紀錄編輯
         if not daily_df.empty:
             st.write("---")
             with st.expander("🛠️ 編輯或移除當日紀錄"):
@@ -486,28 +494,24 @@ if page == "➕ 記一筆 (Add Log)":
                         st.session_state.input_key += 1
                         st.rerun()
 
-
 # ==========================================
-# 頁面內容：📈 報表 (Analytics) - 參考頂級金融 App 設計
+# 分頁：📈 報表 (Analytics) - 徹底修復空白容器
 # ==========================================
-elif page == "📈 報表 (Analytics)":
+with tab_report:
     if not df.empty:
         months = df['日期'].dt.to_period('M').astype(str).unique()
-        col_m1, col_m2 = st.columns([3, 2])
-        with col_m1:
-            st.markdown("<h2 style='margin: 0;'>每月報表</h2>", unsafe_allow_html=True)
-        with col_m2:
-            selected_month = st.selectbox("選擇月份", sorted(months, reverse=True), label_visibility="collapsed")
+        col_m1, col_m2 = st.columns([4, 1])
+        with col_m1: st.markdown("### 每月報表")
+        with col_m2: selected_month = st.selectbox("選擇月份", sorted(months, reverse=True), label_visibility="collapsed")
         
-        # --- 🎯 設定目標輸入區 ---
         current_target = int(settings.get("目標金額", 0)) if str(settings.get("目標月份")) == selected_month else 0
-        with st.expander(f"🎯 設定 {selected_month} 預期目標收入"):
-            new_target = st.number_input("目標金額 (TWD)", min_value=0, step=1000, value=current_target)
-            if st.button("💾 儲存目標", type="primary", use_container_width=True): 
+        with st.expander(f"🎯 設定 {selected_month} 預期目標"):
+            col_t1, col_t2 = st.columns([3, 1])
+            new_target = col_t1.number_input("目標金額 (TWD)", min_value=0, step=1000, value=current_target, label_visibility="collapsed")
+            if col_t2.button("💾 儲存", type="primary", use_container_width=True): 
                 update_setting("目標月份", str(selected_month))
                 update_setting("目標金額", int(new_target))
                 st.rerun()
-        # ----------------------------
 
         month_df = df[df['日期'].dt.to_period('M').astype(str) == selected_month]
         
@@ -516,63 +520,44 @@ elif page == "📈 報表 (Analytics)":
             m_exp = month_df[month_df['類型'] == '開銷']['金額'].sum()
             m_balance = m_inc - m_exp
             
-            # 頂部三大指標卡片
+            # 頂部三大指標
             st.markdown(f"""
-            <div class='pro-card' style='margin-top: 10px; background: linear-gradient(135deg, {COLOR_CARD_BG} 0%, #2C2C2E 100%);'>
+            <div class='pro-card' style='background: linear-gradient(135deg, {COLOR_CARD_BG} 0%, #2C2C2E 100%); padding: 25px;'>
                 <div class='kpi-container'>
-                    <div class='kpi-item'>
-                        <div class='kpi-title'>月總收入</div>
-                        <div class='kpi-value income'>${int(m_inc):,}</div>
-                    </div>
+                    <div class='kpi-item'><div class='kpi-title'>月總收入</div><div class='kpi-value income'>${int(m_inc):,}</div></div>
                     <div style='width: 1px; height: 50px; background-color: rgba(255,255,255,0.1);'></div>
-                    <div class='kpi-item'>
-                        <div class='kpi-title'>月淨結餘</div>
-                        <div class='kpi-value balance' style='font-size: 36px;'>${int(m_balance):,}</div>
-                    </div>
+                    <div class='kpi-item'><div class='kpi-title'>月淨結餘</div><div class='kpi-value balance' style='font-size: 36px;'>${int(m_balance):,}</div></div>
                     <div style='width: 1px; height: 50px; background-color: rgba(255,255,255,0.1);'></div>
-                    <div class='kpi-item'>
-                        <div class='kpi-title'>月總支出</div>
-                        <div class='kpi-value expense'>${int(m_exp):,}</div>
-                    </div>
+                    <div class='kpi-item'><div class='kpi-title'>月總支出</div><div class='kpi-value expense'>${int(m_exp):,}</div></div>
                 </div>
             """, unsafe_allow_html=True)
             
-            # --- 🎯 目標進度條 ---
             if current_target > 0:
                 progress_val = min(m_inc / current_target, 1.0)
                 rem = current_target - m_inc
                 st.markdown(f"""
                     <div style='margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;'>
                         <div style='display:flex; justify-content:space-between; font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-bottom:8px; font-weight:600;'>
-                            <span>🎯 收入目標達成率：${int(m_inc):,} / ${current_target:,}</span>
+                            <span>🎯 收入目標進度：${int(m_inc):,} / ${current_target:,}</span>
                             <span>{int(progress_val*100)}%</span>
                         </div>
                 """, unsafe_allow_html=True)
                 st.progress(progress_val)
-                
-                if rem > 0:
-                    st.markdown(f"<div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; text-align:right; margin-top:6px;'>距離目標還差 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>${int(rem):,}</span></div>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<div style='font-size:13px; color:{COLOR_INCOME}; text-align:right; margin-top:6px; font-weight:700;'>🎉 已達成設定目標！超標 ${int(-rem):,}</div>", unsafe_allow_html=True)
+                if rem > 0: st.markdown(f"<div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; text-align:right; margin-top:6px;'>距離目標還差 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>${int(rem):,}</span></div>", unsafe_allow_html=True)
+                else: st.markdown(f"<div style='font-size:13px; color:{COLOR_INCOME}; text-align:right; margin-top:6px; font-weight:700;'>🎉 已達成設定目標！</div>", unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
-            
             st.markdown("</div>", unsafe_allow_html=True)
-            # ----------------------------------------
 
-            # 💻 電腦端並排設計：左側圓餅圖、右側明細清單
+            # 💡 修復：完美避開 HTML 渲染地雷的 Streamlit 原生並排
             col_pie, col_list = st.columns([1, 1.2])
 
             with col_pie:
-                # 中心結餘圓餅圖
-                st.markdown("<h3 style='margin-top: 30px; margin-bottom: 16px;'>收支分析</h3>", unsafe_allow_html=True)
-                with st.container():
-                    st.markdown(f"<div class='pro-card' style='padding: 20px 0; height: 420px;'>", unsafe_allow_html=True)
-                    
+                st.markdown("#### 收支分析")
+                with st.container(border=True): # 使用原生 container 避免破圖
                     pie_data = [
                         {"label": "總收入", "value": m_inc, "color": COLOR_INCOME},
                         {"label": "總支出", "value": m_exp, "color": COLOR_EXPENSE}
                     ]
-                    
                     fig = go.Figure(data=[go.Pie(
                         labels=[d['label'] for d in pie_data],
                         values=[d['value'] for d in pie_data],
@@ -580,59 +565,46 @@ elif page == "📈 報表 (Analytics)":
                         marker=dict(colors=[d['color'] for d in pie_data]),
                         textinfo='label+percent',
                         hoverinfo='label+value+percent',
-                        textfont=dict(size=14, color=COLOR_TEXT_PRIMARY),
                         showlegend=False
                     )])
-
                     fig.add_annotation(
                         text=f"月結餘<br><span style='font-size: 26px; font-weight: 700; color: {COLOR_BALANCE};'>${int(m_balance):,}</span>",
-                        x=0.5, y=0.5,
-                        font=dict(size=15, color=COLOR_TEXT_SECONDARY),
-                        showarrow=False
+                        x=0.5, y=0.5, font=dict(size=15, color=COLOR_TEXT_SECONDARY), showarrow=False
                     )
-
-                    fig.update_layout(
-                        margin=dict(t=0, b=0, l=0, r=0),
-                        height=350,
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)'
-                    )
+                    fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-                    st.markdown("</div>", unsafe_allow_html=True)
 
             with col_list:
-                # 分類明細清單
-                st.markdown("<h3 style='margin-top: 30px; margin-bottom: 16px;'>分類明細</h3>", unsafe_allow_html=True)
-                with st.container():
-                    # 💡 加入 height 限制與 overflow-y: auto，變成可獨立滾動的面板
-                    st.markdown(f"<div class='pro-card' style='padding: 8px 24px; height: 420px; overflow-y: auto;'>", unsafe_allow_html=True)
+                st.markdown("#### 分類明細")
+                # 💡 修復：將所有明細打包成單一 HTML 字串，放在具有滾動條的 div 內一次性渲染
+                category_df = month_df[month_df['類型'] != '休假'].groupby(['類型', '項目'])['金額'].sum().reset_index()
+                category_df = category_df.sort_values(by='金額', ascending=False)
+                
+                html_list = "<div style='height: 360px; overflow-y: auto; padding: 0 10px;'>"
+                for _, row in category_df.iterrows():
+                    c_type = row['類型']
+                    c_item = row['項目']
+                    c_amount = row['金額']
+                    icon = CATEGORY_ICONS.get(c_item, CATEGORY_ICONS.get(c_type, "📊"))
+                    amount_class = "income" if c_type == "收入" else "expense"
                     
-                    category_df = month_df[month_df['類型'] != '休假'].groupby(['類型', '項目'])['金額'].sum().reset_index()
-                    category_df = category_df.sort_values(by='金額', ascending=False)
-                    
-                    for _, row in category_df.iterrows():
-                        c_type = row['類型']
-                        c_item = row['項目']
-                        c_amount = row['金額']
-                        
-                        icon = CATEGORY_ICONS.get(c_item, CATEGORY_ICONS.get(c_type, "📊"))
-                        amount_class = "income" if c_type == "收入" else "expense"
-                        amount_str = f"${int(c_amount):,}"
-
-                        st.markdown(f"""
-                        <div class='list-item'>
-                            <div class='list-icon'>{icon}</div>
-                            <div class='list-content'>
-                                <div class='list-title'>{c_item}</div>
-                                <div class='list-subtitle'>{c_type}</div>
-                            </div>
-                            <div class='list-amount {amount_class}'>{amount_str}</div>
+                    html_list += f"""
+                    <div class='list-item'>
+                        <div class='list-icon'>{icon}</div>
+                        <div class='list-content'>
+                            <div class='list-title'>{c_item}</div>
+                            <div class='list-subtitle'>{c_type}</div>
                         </div>
-                        """, unsafe_allow_html=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
+                        <div class='list-amount {amount_class}'>${int(c_amount):,}</div>
+                    </div>
+                    """
+                html_list += "</div>"
+                
+                with st.container(border=True):
+                    st.markdown(html_list, unsafe_allow_html=True)
 
-            # 📊 新增：每日收支趨勢圖 (可伸縮)
-            with st.expander("📊 每日收支趨勢 (點擊展開/收縮)", expanded=True):
+            # 每日收支趨勢圖 (可伸縮)
+            with st.expander("📊 每日收支趨勢 (點擊展開)", expanded=True):
                 trend_df = month_df[month_df['類型'] != '休假'].copy()
                 trend_df.loc[trend_df['類型'] == '開銷', '金額'] *= -1
                 if not trend_df.empty:
@@ -653,26 +625,20 @@ elif page == "📈 報表 (Analytics)":
                     st.plotly_chart(fig_bar, use_container_width=True, config={'displayModeBar': False})
                 else:
                     st.caption("尚無資料可繪製趨勢圖。")
-
         else:
             st.info("本月尚無數據。")
     else:
         st.info("目前無任何紀錄，請先新增資料。")
 
 # ==========================================
-# 頁面內容：⚙️ 設定 (Settings)
+# 分頁：⚙️ 設定 (Settings)
 # ==========================================
-elif page == "⚙️ 設定 (Settings)":
-    st.title("設定")
-    st.markdown(f"""
-    <div class='pro-card'>
-        <h3 style='margin-bottom: 16px;'>📥 匯出資料</h3>
-        <p style='color:{COLOR_TEXT_SECONDARY}; margin-bottom: 20px;'>將您的所有原始紀錄匯出為 CSV 檔案，以便進行備份或在其他軟體中分析。</p>
-    """, unsafe_allow_html=True)
-    
-    if not df.empty:
-        csv_data = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(label="下載 CSV 備份檔", data=csv_data, file_name=f"delivery_pro_export_{date.today().strftime('%Y%m%d')}.csv", mime="text/csv", type="primary", use_container_width=True) 
-    else:
-        st.info("目前無資料可供下載。")
-    st.markdown("</div>", unsafe_allow_html=True)
+with tab_settings:
+    st.markdown("### ⚙️ 帳號設定與資料匯出")
+    with st.container(border=True):
+        st.markdown("#### 📥 備份原始數據")
+        st.caption("將雲端資料庫的原始紀錄匯出為 CSV 檔案，可使用 Excel 或 Google Sheets 開啟。")
+        if not df.empty:
+            csv_data = df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(label="📥 下載 CSV 備份", data=csv_data, file_name=f"delivery_pro_export_{date.today().strftime('%Y%m%d')}.csv", mime="text/csv", type="primary") 
+        else: st.info("目前無資料可供下載。")
