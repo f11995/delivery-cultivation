@@ -305,7 +305,7 @@ with tab_dash:
     with c3:
         st.markdown(f"<div class='kpi-card-purple'><div class='kpi-title'>本週累積 (This Week)</div><div class='kpi-value'>${int(w_inc):,}</div></div>", unsafe_allow_html=True)
     with c4:
-        st.markdown(f"<div class='kpi-card-orange'><div class='kpi-title'>整體投資報酬 (ROI)</div><div class='kpi-value'>1 : {roi:.1f}</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='kpi-card-orange'><div class='kpi-title'>當月目標完成率 (Target)</div><div class='kpi-value'>{target_str}</div></div>", unsafe_allow_html=True)
     
     st.write("")
 
