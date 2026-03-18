@@ -9,7 +9,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # ==========================================
-# ⚙️ 系統常數與專業設定
+# ⚙️ 系統常數與專業設定 (已完美補回所有常數)
 # ==========================================
 COLOR_INCOME = "#06C167"
 COLOR_EXPENSE = "#FF453A"
@@ -40,6 +40,18 @@ CATEGORY_ICONS = {
     "收入": "💰",
     "開銷": "💸"
 }
+
+WEEKDAY_MAP = {0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun'}
+WEEKDAY_CHINESE_MAP = {0: '週一', 1: '週二', 2: '週三', 3: '週四', 4: '週五', 5: '週六', 6: '週日'}
+
+DRIVER_TIERS = [
+    (0, "新手駕駛", "Rookie", "🔰"), (10000, "青銅夥伴 I", "Bronze I", "🥉"), (30000, "青銅夥伴 II", "Bronze II", "🥉"), (60000, "青銅夥伴 III", "Bronze III", "🥉"),
+    (100000, "白銀專家 I", "Silver I", "🥈"), (150000, "白銀專家 II", "Silver II", "🥈"), (200000, "白銀專家 III", "Silver III", "🥈"),
+    (300000, "黃金菁英 I", "Gold I", "🥇"), (400000, "黃金菁英 II", "Gold II", "🥇"), (500000, "黃金菁英 III", "Gold III", "🥇"),
+    (600000, "白金先鋒 I", "Platinum I", "💠"), (800000, "白金先鋒 II", "Platinum II", "💠"), (1000000, "白金先鋒 III", "Platinum III", "💠"),
+    (1500000, "鑽石大師 I", "Diamond I", "💎"), (2000000, "鑽石大師 II", "Diamond II", "💎"), (3000000, "鑽石大師 III", "Diamond III", "💎"),
+    (5000000, "巔峰傳奇", "Apex Legend", "👑")
+]
 
 # ==========================================
 # 🌐 單機版專屬資料庫引擎 (極速、無冗餘)
@@ -101,7 +113,6 @@ def load_settings():
         return {"目標月份": "", "目標金額": 0}
     return records[0]
 
-# 一鍵批量儲存功能 (秒速記帳核心)
 def save_data_batch(rows):
     with st.spinner("⏳ 閃電同步至雲端伺服器..."):
         try:
@@ -126,7 +137,19 @@ def update_setting(col_name, value):
         else: ws.update_cell(2, col_idx, str(value))
         load_settings.clear()
 
-# 日曆切換功能
+def get_driver_tier_info(total_exp):
+    current_tier, current_title, current_avatar = "新手駕駛", "Rookie", "🔰"
+    next_tier, next_exp, prev_exp = "N/A", 10000, 0
+    for i in range(len(DRIVER_TIERS)):
+        if total_exp >= DRIVER_TIERS[i][0]:
+            current_tier, current_title, current_avatar = DRIVER_TIERS[i][1], DRIVER_TIERS[i][2], DRIVER_TIERS[i][3]
+            prev_exp = DRIVER_TIERS[i][0]
+            if i + 1 < len(DRIVER_TIERS): next_tier, next_exp = DRIVER_TIERS[i+1][1], DRIVER_TIERS[i+1][0]
+            else: next_tier, next_exp = "MAX TIER", total_exp
+        else: break
+    progress = 1.0 if next_tier == "MAX TIER" else min((total_exp - prev_exp) / (next_exp - prev_exp), 1.0)
+    return current_tier, next_tier, next_exp, progress, current_title, current_avatar
+
 def change_date(new_date):
     st.session_state.selected_date = new_date
 
@@ -251,7 +274,6 @@ total_hours = df[df['類型'] == '收入']['上線時數'].sum() if not df.empty
 with st.sidebar:
     st.markdown(f"<div class='sidebar-brand'>Delivery <span>Pro</span></div>", unsafe_allow_html=True)
     
-    # 恢復原本的三大分頁設計
     page = st.radio("Navigation", ["➕ 記一筆 (Add Log)", "📈 報表 (Analytics)", "⚙️ 設定 (Settings)"], label_visibility="collapsed")
     
     st.divider()
@@ -270,7 +292,6 @@ with st.sidebar:
 # 頁面內容：➕ 記一筆 (經典打卡月曆 + 秒速表單)
 # ==========================================
 if page == "➕ 記一筆 (Add Log)":
-    # 完美重現你最愛的 1:1.2 排版比例
     col1, col2 = st.columns([1, 1.2])
     
     # ------------------ 左側：秒速記帳區 ------------------
@@ -478,7 +499,7 @@ elif page == "📈 報表 (Analytics)":
         with col_m2:
             selected_month = st.selectbox("選擇月份", sorted(months, reverse=True), label_visibility="collapsed")
         
-        # --- 🎯 恢復：設定目標輸入區 ---
+        # --- 🎯 設定目標輸入區 ---
         current_target = int(settings.get("目標金額", 0)) if str(settings.get("目標月份")) == selected_month else 0
         with st.expander(f"🎯 設定 {selected_month} 預期目標收入"):
             new_target = st.number_input("目標金額 (TWD)", min_value=0, step=1000, value=current_target)
@@ -516,7 +537,7 @@ elif page == "📈 報表 (Analytics)":
                 </div>
             """, unsafe_allow_html=True)
             
-            # --- 🎯 恢復：目標進度條 (融合於卡片底部) ---
+            # --- 🎯 目標進度條 ---
             if current_target > 0:
                 progress_val = min(m_inc / current_target, 1.0)
                 rem = current_target - m_inc
@@ -535,7 +556,6 @@ elif page == "📈 報表 (Analytics)":
                     st.markdown(f"<div style='font-size:13px; color:{COLOR_INCOME}; text-align:right; margin-top:6px; font-weight:700;'>🎉 已達成設定目標！超標 ${int(-rem):,}</div>", unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
             
-            # 關閉 pro-card 容器
             st.markdown("</div>", unsafe_allow_html=True)
             # ----------------------------------------
 
@@ -610,7 +630,6 @@ elif page == "📈 報表 (Analytics)":
                 trend_df = month_df[month_df['類型'] != '休假'].copy()
                 trend_df.loc[trend_df['類型'] == '開銷', '金額'] *= -1
                 if not trend_df.empty:
-                    # 確保 X 軸為分類型態，避免日期斷層
                     trend_df['日期字串'] = trend_df['日期'].dt.strftime('%m-%d')
                     fig_bar = px.bar(
                         trend_df, x='日期字串', y='金額', color='項目', 
@@ -629,7 +648,7 @@ elif page == "📈 報表 (Analytics)":
                 else:
                     st.caption("尚無資料可繪製趨勢圖。")
 
-            # 📅 新增：每日細項查詢器
+            # 📅 新增：每日細項查詢器 (已修復 WEEKDAY_MAP 錯誤)
             st.markdown("<h3 style='margin-top: 30px; margin-bottom: 16px;'>📅 每日明細查詢</h3>", unsafe_allow_html=True)
             unique_dates = sorted(month_df['日期'].dt.date.unique(), reverse=True)
             
