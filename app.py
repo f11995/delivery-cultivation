@@ -559,71 +559,77 @@ elif page == "📈 報表 (Analytics)":
             st.markdown("</div>", unsafe_allow_html=True)
             # ----------------------------------------
 
-            # 中心結餘圓餅圖
-            st.markdown("<h3 style='margin-top: 30px; margin-bottom: 16px;'>收支分析</h3>", unsafe_allow_html=True)
-            with st.container():
-                st.markdown(f"<div class='pro-card' style='padding: 20px 0;'>", unsafe_allow_html=True)
-                
-                pie_data = [
-                    {"label": "總收入", "value": m_inc, "color": COLOR_INCOME},
-                    {"label": "總支出", "value": m_exp, "color": COLOR_EXPENSE}
-                ]
-                
-                fig = go.Figure(data=[go.Pie(
-                    labels=[d['label'] for d in pie_data],
-                    values=[d['value'] for d in pie_data],
-                    hole=0.6,
-                    marker=dict(colors=[d['color'] for d in pie_data]),
-                    textinfo='label+percent',
-                    hoverinfo='label+value+percent',
-                    textfont=dict(size=14, color=COLOR_TEXT_PRIMARY),
-                    showlegend=False
-                )])
+            # 💻 電腦端並排設計：左側圓餅圖、右側明細清單
+            col_pie, col_list = st.columns([1, 1.2])
 
-                fig.add_annotation(
-                    text=f"月結餘<br><span style='font-size: 26px; font-weight: 700; color: {COLOR_BALANCE};'>${int(m_balance):,}</span>",
-                    x=0.5, y=0.5,
-                    font=dict(size=15, color=COLOR_TEXT_SECONDARY),
-                    showarrow=False
-                )
-
-                fig.update_layout(
-                    margin=dict(t=0, b=0, l=0, r=0),
-                    height=320,
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)'
-                )
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            # 分類明細清單
-            st.markdown("<h3 style='margin-top: 30px; margin-bottom: 16px;'>分類明細</h3>", unsafe_allow_html=True)
-            with st.container():
-                st.markdown(f"<div class='pro-card' style='padding: 8px 24px;'>", unsafe_allow_html=True)
-                
-                category_df = month_df[month_df['類型'] != '休假'].groupby(['類型', '項目'])['金額'].sum().reset_index()
-                category_df = category_df.sort_values(by='金額', ascending=False)
-                
-                for _, row in category_df.iterrows():
-                    c_type = row['類型']
-                    c_item = row['項目']
-                    c_amount = row['金額']
+            with col_pie:
+                # 中心結餘圓餅圖
+                st.markdown("<h3 style='margin-top: 30px; margin-bottom: 16px;'>收支分析</h3>", unsafe_allow_html=True)
+                with st.container():
+                    st.markdown(f"<div class='pro-card' style='padding: 20px 0; height: 420px;'>", unsafe_allow_html=True)
                     
-                    icon = CATEGORY_ICONS.get(c_item, CATEGORY_ICONS.get(c_type, "📊"))
-                    amount_class = "income" if c_type == "收入" else "expense"
-                    amount_str = f"${int(c_amount):,}"
+                    pie_data = [
+                        {"label": "總收入", "value": m_inc, "color": COLOR_INCOME},
+                        {"label": "總支出", "value": m_exp, "color": COLOR_EXPENSE}
+                    ]
+                    
+                    fig = go.Figure(data=[go.Pie(
+                        labels=[d['label'] for d in pie_data],
+                        values=[d['value'] for d in pie_data],
+                        hole=0.6,
+                        marker=dict(colors=[d['color'] for d in pie_data]),
+                        textinfo='label+percent',
+                        hoverinfo='label+value+percent',
+                        textfont=dict(size=14, color=COLOR_TEXT_PRIMARY),
+                        showlegend=False
+                    )])
 
-                    st.markdown(f"""
-                    <div class='list-item'>
-                        <div class='list-icon'>{icon}</div>
-                        <div class='list-content'>
-                            <div class='list-title'>{c_item}</div>
-                            <div class='list-subtitle'>{c_type}</div>
+                    fig.add_annotation(
+                        text=f"月結餘<br><span style='font-size: 26px; font-weight: 700; color: {COLOR_BALANCE};'>${int(m_balance):,}</span>",
+                        x=0.5, y=0.5,
+                        font=dict(size=15, color=COLOR_TEXT_SECONDARY),
+                        showarrow=False
+                    )
+
+                    fig.update_layout(
+                        margin=dict(t=0, b=0, l=0, r=0),
+                        height=350,
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)'
+                    )
+                    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+            with col_list:
+                # 分類明細清單
+                st.markdown("<h3 style='margin-top: 30px; margin-bottom: 16px;'>分類明細</h3>", unsafe_allow_html=True)
+                with st.container():
+                    # 💡 加入 height 限制與 overflow-y: auto，變成可獨立滾動的面板
+                    st.markdown(f"<div class='pro-card' style='padding: 8px 24px; height: 420px; overflow-y: auto;'>", unsafe_allow_html=True)
+                    
+                    category_df = month_df[month_df['類型'] != '休假'].groupby(['類型', '項目'])['金額'].sum().reset_index()
+                    category_df = category_df.sort_values(by='金額', ascending=False)
+                    
+                    for _, row in category_df.iterrows():
+                        c_type = row['類型']
+                        c_item = row['項目']
+                        c_amount = row['金額']
+                        
+                        icon = CATEGORY_ICONS.get(c_item, CATEGORY_ICONS.get(c_type, "📊"))
+                        amount_class = "income" if c_type == "收入" else "expense"
+                        amount_str = f"${int(c_amount):,}"
+
+                        st.markdown(f"""
+                        <div class='list-item'>
+                            <div class='list-icon'>{icon}</div>
+                            <div class='list-content'>
+                                <div class='list-title'>{c_item}</div>
+                                <div class='list-subtitle'>{c_type}</div>
+                            </div>
+                            <div class='list-amount {amount_class}'>{amount_str}</div>
                         </div>
-                        <div class='list-amount {amount_class}'>{amount_str}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+                        """, unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
 
             # 📊 新增：每日收支趨勢圖 (可伸縮)
             with st.expander("📊 每日收支趨勢 (點擊展開/收縮)", expanded=True):
