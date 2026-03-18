@@ -256,9 +256,19 @@ today = date.today()
 # 計算終身數據
 total_income = df[df['類型'] == '收入']['金額'].sum() if not df.empty else 0
 total_hours = df[df['類型'] == '收入']['上線時數'].sum() if not df.empty else 0.0
-total_gas_maint = df[(df['類型'] == '開銷') & (df['項目'].isin(['機車油錢', '機車保養']))]['金額'].sum() if not df.empty else 0
 
-roi = (total_income / total_gas_maint) if total_gas_maint > 0 else total_income
+# 💡 修復：在此處補上當月目標完成率的計算，定義 target_str 變數
+current_month_str = today.strftime('%Y-%m')
+current_target = int(settings.get("目標金額", 0)) if str(settings.get("目標月份")) == current_month_str else 0
+this_month_df = df[df['日期'].dt.to_period('M').astype(str) == current_month_str] if not df.empty else pd.DataFrame()
+m_inc_total = this_month_df[this_month_df['類型'] == '收入']['金額'].sum() if not this_month_df.empty else 0
+
+if current_target > 0:
+    target_completion_rate = (m_inc_total / current_target) * 100
+    target_str = f"{target_completion_rate:.1f}%"
+else:
+    target_str = "未設定"
+
 driver_tier, next_tier, next_exp, prog, d_title, d_icon = get_driver_tier_info(total_income)
 
 # 頂部標題與狀態列 (完美取代側邊欄，橫向展開)
@@ -267,7 +277,7 @@ with col_title:
     st.markdown(f"""
     <h2 style='margin:0;'>Delivery <span style='color:{COLOR_INCOME};'>Pro</span> 
     <span style='font-size:16px; color:{COLOR_TEXT_SECONDARY}; font-weight:500; margin-left:15px;'>
-    {d_icon} 評級: {driver_tier} &nbsp;|&nbsp; 💰 終身收入: ${int(total_income):,} &nbsp;|&nbsp; 📈 總投資報酬: 1:{roi:.1f}
+    {d_icon} 評級: {driver_tier} &nbsp;|&nbsp; 💰 終身收入: ${int(total_income):,} &nbsp;|&nbsp; 🎯 當月目標: {target_str}
     </span></h2>
     """, unsafe_allow_html=True)
 with col_sync:
