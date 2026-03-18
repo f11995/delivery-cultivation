@@ -83,11 +83,15 @@ def load_settings():
         return {"目標月份": "", "目標金額": 0}
     return records[0]
 
-def save_data(date_val, record_type, item, amount, hours, note, is_incident):
-    with st.spinner("⏳ 同步至雲端..."):
-        ws = get_records_ws()
-        ws.append_row([str(date_val), str(record_type), str(item), int(amount), float(hours), str(note), str(is_incident)])
-        load_data.clear()
+# 💡 全新的一鍵批量儲存功能 (秒速記帳核心)
+def save_data_batch(rows):
+    with st.spinner("⏳ 閃電同步至雲端伺服器..."):
+        try:
+            ws = get_records_ws()
+            ws.append_rows(rows)
+            load_data.clear()
+        except Exception as e:
+            st.error(f"儲存失敗：{e}")
 
 def delete_data(indices_to_drop):
     with st.spinner("⏳ 移除紀錄中..."):
@@ -144,11 +148,50 @@ st.markdown("""
     .kpi-value { font-size: 40px; font-weight: 700; color: #FFFFFF; line-height: 1.1; letter-spacing: -1px;}
     .kpi-sub { font-size: 14px; color: #06C167; font-weight: 600; margin-top: 4px;}
     
-    /* 側邊欄設計 */
+    /* =======================================
+       ✨ 側邊欄：模塊化大型按鈕 (Modular Blocks) 
+       ======================================= */
     section[data-testid="stSidebar"] { background-color: #121212 !important; border-right: 1px solid #2C2C2E;}
     .sidebar-brand { font-size: 24px; font-weight: 800; color: #FFFFFF; margin-bottom: 30px; padding-left: 5px; letter-spacing: -0.5px;}
     .sidebar-brand span { color: #06C167; }
     
+    /* 調整選單間距 */
+    div[data-testid="stRadio"] > div[role="radiogroup"] { gap: 12px; }
+    
+    /* 把選項變成大卡片 */
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label {
+        background-color: #1C1C1E;
+        padding: 16px 20px;
+        border-radius: 12px;
+        border: 1px solid #2C2C2E;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        width: 100%;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label:hover {
+        background-color: #242426;
+        border-color: #3A3A3C;
+        transform: translateY(-2px);
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label[data-checked="true"] {
+        background-color: rgba(6, 193, 103, 0.1);
+        border-color: #06C167;
+        border-left: 6px solid #06C167;
+    }
+    /* 隱藏原生圓點按鈕 */
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label > div:first-child { display: none; }
+    
+    /* 放大文字並微調顏色 */
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label > div:nth-child(2) > p {
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        color: #E5E5EA !important;
+        margin: 0 !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label[data-checked="true"] > div:nth-child(2) > p {
+        color: #FFFFFF !important;
+    }
+
     /* 進度條美化 */
     .stProgress > div > div > div > div { background-color: #06C167; }
     
@@ -280,7 +323,7 @@ if page == "📊 總覽 (Dashboard)":
         """, unsafe_allow_html=True)
 
 # ==========================================
-# 頁面內容：➕ 記一筆 (Add Log)
+# 頁面內容：➕ 記一筆 (秒速記帳 一站式表單)
 # ==========================================
 elif page == "➕ 記一筆 (Add Log)":
     st.title("Log Shift")
@@ -289,28 +332,37 @@ elif page == "➕ 記一筆 (Add Log)":
     
     with col1:
         with st.container(border=True):
-            if st.session_state.show_success: st.success("✅ 紀錄已安全儲存。"); st.session_state.show_success = False
+            if st.session_state.show_success: 
+                st.success("✅ 帳本已安全儲存！")
+                st.session_state.show_success = False
             
-            temp_date = st.date_input("🗓️ 選擇日期", value=st.session_state.selected_date)
+            # --- 📅 第一區：日期與狀態 ---
+            st.markdown("#### 📅 日期與狀態 (Date & Status)")
+            temp_date = st.date_input("選擇日期", value=st.session_state.selected_date, label_visibility="collapsed")
             if temp_date != st.session_state.selected_date: st.session_state.selected_date = temp_date; st.rerun()
             record_date = st.session_state.selected_date
+            
+            is_leave = st.checkbox("🏖️ 標記今日為「休假」 (勾選後直接按最下方儲存)", value=False)
+            st.divider()
     
-            record_type = st.radio("類別", ["收入", "開銷", "休假"], horizontal=True)
-            st.write("---")
-    
-            if record_type == "收入":
+            if not is_leave:
+                # --- 💰 第二區：收入與時數 ---
+                st.markdown("#### 💰 營業收入與時數 (Revenue & Hours)")
                 platform_mode = st.radio("平台模式", ["單一平台", "雙開合併"], horizontal=True)
+                
+                amount, amount_u, amount_f = 0, 0, 0
+                item = "Uber Eats"
+                
                 if platform_mode == "單一平台":
-                    item = st.selectbox("選擇平台", ["Uber Eats", "Foodpanda", "其他獎金"])
-                    amount = st.number_input("💰 總收入 (TWD)", min_value=0, step=10, value=None, key=f"amt_{k}")
-                    val_amount = amount if amount is not None else 0
+                    item = st.selectbox("選擇平台", ["Uber Eats", "Foodpanda", "其他獎金"], label_visibility="collapsed")
+                    amount = st.number_input("總收入 (TWD)", min_value=0, step=10, value=None, key=f"amt_{k}", placeholder="輸入總金額...")
                 else:
                     u_col, f_col = st.columns(2)
-                    with u_col: amount_u = st.number_input("Uber Eats", min_value=0, step=10, value=None, key=f"amtu_{k}")
-                    with f_col: amount_f = st.number_input("Foodpanda", min_value=0, step=10, value=None, key=f"amtf_{k}")
-                    val_amount = (amount_u or 0) + (amount_f or 0)
+                    with u_col: amount_u = st.number_input("Uber Eats 收入", min_value=0, step=10, value=None, key=f"amtu_{k}", placeholder="UE 金額")
+                    with f_col: amount_f = st.number_input("Foodpanda 收入", min_value=0, step=10, value=None, key=f"amtf_{k}", placeholder="熊貓 金額")
                     
                 time_mode = st.radio("時數計算", ["APP 剩餘時間反推 (12H制)", "手動輸入", "系統換算 (首至末單)"], horizontal=True)
+                hours = 0.0
                 
                 if time_mode == "系統換算 (首至末單)":
                     t_col1, t_col2 = st.columns(2)
@@ -319,52 +371,78 @@ elif page == "➕ 記一筆 (Add Log)":
                     dt_start, dt_end = datetime.combine(date(2000, 1, 1), start_time), datetime.combine(date(2000, 1, 1), end_time)
                     if dt_end < dt_start: dt_end += timedelta(days=1)
                     hours = round((dt_end - dt_start).total_seconds() / 3600.0, 2)
-                    st.info(f"⏱️ 系統換算：**{hours} h**")
+                    st.info(f"⏱️ 換算實際上線：**{hours} h**")
                 elif time_mode == "手動輸入":
                     h_col, m_col = st.columns(2)
-                    with h_col: input_hours = st.number_input("小時", min_value=0, step=1, value=None, key=f"hr_{k}")
-                    with m_col: input_minutes = st.number_input("分鐘", min_value=0, max_value=59, step=1, value=None, key=f"min_{k}")
+                    with h_col: input_hours = st.number_input("時 (Hours)", min_value=0, step=1, value=None, key=f"hr_{k}")
+                    with m_col: input_minutes = st.number_input("分 (Minutes)", min_value=0, max_value=59, step=1, value=None, key=f"min_{k}")
                     hours = round((input_hours or 0) + ((input_minutes or 0) / 60.0), 2)
                 else: 
                     st.caption("💡 輸入 APP 上方顯示的「剩餘可用駕駛時間」：")
                     h_col, m_col = st.columns(2)
-                    with h_col: remain_hours = st.number_input("剩餘小時", min_value=0, max_value=12, step=1, value=None, key=f"r_hr_{k}")
-                    with m_col: remain_minutes = st.number_input("剩餘分鐘", min_value=0, max_value=59, step=1, value=None, key=f"r_min_{k}")
+                    with h_col: remain_hours = st.number_input("剩餘 小時", min_value=0, max_value=12, step=1, value=None, key=f"r_hr_{k}")
+                    with m_col: remain_minutes = st.number_input("剩餘 分鐘", min_value=0, max_value=59, step=1, value=None, key=f"r_min_{k}")
                     if remain_hours is not None or remain_minutes is not None:
                         r_h = remain_hours or 0
                         r_m = remain_minutes or 0
                         used_mins = max(0, 720 - (r_h * 60 + r_m))
                         hours = round(used_mins / 60.0, 2)
-                        st.info(f"⏱️ 反推上線：**{hours} h**")
-                    else: hours = 0.0
+                        st.info(f"⏱️ 反推實際上線：**{hours} h** (約 {used_mins // 60}h {used_mins % 60}m)")
+                st.divider()
+                
+                # --- 💸 第三區：開銷一體化 ---
+                st.markdown("#### 💸 營業開銷 (Expenses) - 無開銷免填")
+                c_exp1, c_exp2 = st.columns(2)
+                with c_exp1: gas_exp = st.number_input("⛽ 機車油錢 (TWD)", min_value=0, step=10, value=None, key=f"gas_{k}")
+                with c_exp2: maint_exp = st.number_input("🔧 機車保養 (TWD)", min_value=0, step=10, value=None, key=f"maint_{k}")
+                
+                c_exp3, c_exp4 = st.columns(2)
+                with c_exp3: other_exp = st.number_input("📦 其他開銷 (TWD)", min_value=0, step=10, value=None, key=f"oexp_{k}")
+                with c_exp4: other_name = st.text_input("開銷名稱 (必填)", placeholder="如：雨衣、手機架", key=f"oname_{k}")
+                st.divider()
+                
+                # --- ⚠️ 第四區：異常與備註 ---
+                st.markdown("#### 📝 異常與備註 (Notes)")
+                is_incident = st.checkbox("⚠️ 標記異常 (車輛故障/極端天氣等)", key=f"trib_{k}")
+                note = st.text_input("今日備註", value="", placeholder="輸入任何心得...", key=f"note_{k}")
+                
+                st.write("")
+                # 🚀 秒速記帳按鈕
+                if st.button("🚀 一鍵儲存今日帳本 (Save All)", type="primary", use_container_width=True):
+                    rows_to_add = []
                     
-                is_incident = st.checkbox("⚠️ 標記異常 (奧客/車損/惡劣天氣)", key=f"trib_{k}")
-                note = st.text_input("備註", value="", key=f"note_{k}")
-    
-                if st.button("📤 儲存收入紀錄", type="primary", use_container_width=True):
-                    if platform_mode == "單一平台":
-                        if val_amount > 0: save_data(record_date, record_type, item, val_amount, hours, note, is_incident); st.session_state.show_success, st.session_state.input_key = True, st.session_state.input_key + 1; st.rerun()
-                        else: st.warning("請輸入有效金額。")
+                    # 處理收入
+                    val_amount = amount if platform_mode == "單一平台" else ((amount_u or 0) + (amount_f or 0))
+                    if val_amount > 0:
+                        if platform_mode == "單一平台":
+                            rows_to_add.append([str(record_date), "收入", item, int(amount), hours, note, str(is_incident)])
+                        else:
+                            if (amount_u or 0) > 0: rows_to_add.append([str(record_date), "收入", "Uber Eats", int(amount_u), hours, note, str(is_incident)])
+                            if (amount_f or 0) > 0: rows_to_add.append([str(record_date), "收入", "Foodpanda", int(amount_f), 0.0, note, str(is_incident)])
+                    
+                    # 處理開銷
+                    if (gas_exp or 0) > 0: rows_to_add.append([str(record_date), "開銷", "機車油錢", int(gas_exp), 0.0, note, str(is_incident)])
+                    if (maint_exp or 0) > 0: rows_to_add.append([str(record_date), "開銷", "機車保養", int(maint_exp), 0.0, note, str(is_incident)])
+                    if (other_exp or 0) > 0:
+                        if other_name.strip() == "": st.warning("⚠️ 填寫「其他開銷」金額時，必須輸入開銷名稱！")
+                        else: rows_to_add.append([str(record_date), "開銷", other_name.strip(), int(other_exp), 0.0, note, str(is_incident)])
+                    
+                    if len(rows_to_add) > 0:
+                        save_data_batch(rows_to_add)
+                        st.session_state.show_success = True
+                        st.session_state.input_key += 1
+                        st.rerun()
                     else:
-                        if (amount_u or 0) > 0 or (amount_f or 0) > 0:
-                            if (amount_u or 0) > 0: save_data(record_date, record_type, "Uber Eats", amount_u, hours, note, is_incident)
-                            if (amount_f or 0) > 0: save_data(record_date, record_type, "Foodpanda", amount_f, 0.0 if (amount_u or 0) > 0 else hours, note, is_incident)
-                            st.session_state.show_success, st.session_state.input_key = True, st.session_state.input_key + 1; st.rerun()
-                        else: st.warning("請輸入有效金額。")
-    
-            elif record_type == "開銷": 
-                expense_choice = st.selectbox("費用分類", ["機車油錢", "機車保養", "機車貸款", "設備耗材", "其他"])
-                item = st.text_input("自訂名稱", key=f"item_{k}") if expense_choice == "其他" else expense_choice
-                amount = st.number_input("金額 (TWD)", min_value=0, step=10, value=None, key=f"amt_{k}")
-                note = st.text_input("備註", value="", key=f"note_{k}")
-                if st.button("📤 儲存開銷", type="primary", use_container_width=True):
-                    if (amount or 0) > 0 and item.strip() != "": save_data(record_date, record_type, item, amount, 0.0, note, False); st.session_state.show_success, st.session_state.input_key = True, st.session_state.input_key + 1; st.rerun()
-                    else: st.warning("請檢查金額與項目。")
+                        st.warning("⚠️ 請至少輸入一筆有效的收入或開銷！")
+
             else:
-                note = st.text_input("休假備註", value="", key=f"note_{k}")
-                if st.button("📤 標記休假", type="primary", use_container_width=True):
-                    save_data(record_date, record_type, "休假", 0, 0.0, note, False)
-                    st.session_state.show_success, st.session_state.input_key = True, st.session_state.input_key + 1
+                # 休假處理
+                note = st.text_input("休假備註", value="", placeholder="去哪裡放鬆？", key=f"note_{k}")
+                st.write("")
+                if st.button("🚀 儲存休假紀錄 (Save Off-Day)", type="primary", use_container_width=True):
+                    save_data_batch([[str(record_date), "休假", "休假", 0, 0.0, note, "False"]])
+                    st.session_state.show_success = True
+                    st.session_state.input_key += 1
                     st.rerun()
     
     with col2:
