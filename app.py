@@ -11,7 +11,6 @@ from google.oauth2.service_account import Credentials
 # ==========================================
 # ⚙️ 系統常數與專業設定
 # ==========================================
-# 擴充顏色定義，用於新的 UI
 COLOR_INCOME = "#06C167"
 COLOR_EXPENSE = "#FF453A"
 COLOR_BALANCE = "#00E5FF"
@@ -30,7 +29,6 @@ CUSTOM_COLORS = {
     "其他開銷": "#BF5AF2"
 }
 
-# 定義類別圖示
 CATEGORY_ICONS = {
     "Uber Eats": "🍔",
     "Foodpanda": "🐼",
@@ -56,7 +54,7 @@ DRIVER_TIERS = [
 ]
 
 # ==========================================
-# 🌐 單機版專屬資料庫引擎 (極速、無冗餘)
+# 🌐 單機版專屬資料庫引擎
 # ==========================================
 @st.cache_resource
 def get_gspread_client():
@@ -115,7 +113,6 @@ def load_settings():
         return {"目標月份": "", "目標金額": 0}
     return records[0]
 
-# 💡 全新的一鍵批量儲存功能 (秒速記帳核心)
 def save_data_batch(rows):
     with st.spinner("⏳ 閃電同步至雲端伺服器..."):
         try:
@@ -140,9 +137,6 @@ def update_setting(col_name, value):
         else: ws.update_cell(2, col_idx, str(value))
         load_settings.clear()
 
-# ==========================================
-# 輔助計算函數
-# ==========================================
 def get_driver_tier_info(total_exp):
     current_tier, current_title, current_avatar = "新手駕駛", "Rookie", "🔰"
     next_tier, next_exp, prev_exp = "N/A", 10000, 0
@@ -156,12 +150,11 @@ def get_driver_tier_info(total_exp):
     progress = 1.0 if next_tier == "MAX TIER" else min((total_exp - prev_exp) / (next_exp - prev_exp), 1.0)
     return current_tier, next_tier, next_exp, progress, current_title, current_avatar
 
-# 💡 修復：補回切換日期的重要核心函數
 def change_date(new_date):
     st.session_state.selected_date = new_date
 
 # ==========================================
-# 🎨 頂級 App 視覺樣式 (Advanced Fintech Style)
+# 🎨 頂級 App 視覺樣式
 # ==========================================
 st.set_page_config(page_title="Delivery Pro", layout="wide", page_icon="📊")
 st.markdown(f"""
@@ -171,8 +164,8 @@ st.markdown(f"""
     .block-container {{ padding-top: 1rem; padding-bottom: 5rem; max-width: 1000px; }}
     h1, h2, h3 {{ font-weight: 700; letter-spacing: -0.5px; }}
     
-    /* 隱藏不必要的元素 */
-    header {{ visibility: hidden; }}
+    /* 修復側邊欄按鈕消失的問題：保留 header 但設為透明 */
+    header[data-testid="stHeader"] {{ background: transparent !important; }}
     footer {{ visibility: hidden; }}
     .stDeployButton {{ display: none; }}
 
@@ -195,7 +188,7 @@ st.markdown(f"""
     .kpi-value.expense {{ color: {COLOR_EXPENSE}; }}
     .kpi-value.balance {{ color: {COLOR_BALANCE}; }}
 
-    /* 新版列表樣式 (List Item) - 參考圖一、二 */
+    /* 新版列表樣式 (List Item) */
     .list-item {{
         display: flex;
         align-items: center;
@@ -249,32 +242,9 @@ st.markdown(f"""
     }}
     div[data-testid="stRadio"] > div[role="radiogroup"] > label[data-checked="true"] > div:nth-child(2) > p {{ color: #FFFFFF !important; }}
 
-    /* 懸浮動作按鈕 (FAB) - 模擬 */
-    .fab-container {{
-        position: fixed;
-        bottom: 30px;
-        right: 20px;
-        z-index: 999;
-    }}
-    .fab-button {{
-        background-color: {COLOR_INCOME};
-        color: white;
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 30px;
-        box-shadow: 0 4px 12px rgba(6, 193, 103, 0.4);
-        cursor: pointer;
-        transition: transform 0.2s;
-    }}
-    .fab-button:hover {{ transform: scale(1.05); }}
-
     /* 日曆樣式微調 */
     div[data-testid="stDateInput"] > div {{ border-radius: 12px; overflow: hidden; border: none; }}
-    button[kind="primary"] {{ background-color: {COLOR_INCOME} !important; border: none; font-weight: 600; }}
+    button[kind="primary"] {{ background-color: {COLOR_INCOME} !important; border: none; font-weight: 600; color: white !important;}}
     button[kind="secondary"] {{ background-color: rgba(255, 255, 255, 0.05) !important; border: none; color: {COLOR_TEXT_SECONDARY}; }}
 
     /* Plotly 圖表背景透明 */
@@ -320,7 +290,7 @@ settings = load_settings()
 if "selected_date" not in st.session_state: st.session_state.selected_date = date.today()
 if "input_key" not in st.session_state: st.session_state.input_key = 0
 if "show_success" not in st.session_state: st.session_state.show_success = False
-if "show_add_log" not in st.session_state: st.session_state.show_add_log = False # 控制記帳表單顯示
+if "show_add_log" not in st.session_state: st.session_state.show_add_log = False 
 
 k = st.session_state.input_key
 today = date.today()
@@ -338,7 +308,6 @@ driver_tier, next_tier, next_exp, prog, d_title, d_icon = get_driver_tier_info(t
 # ==========================================
 with st.sidebar:
     st.markdown(f"<div class='sidebar-brand'>Delivery <span>Pro</span></div>", unsafe_allow_html=True)
-    # 將 "➕ 記一筆" 從導覽中移除，改用 FAB 觸發
     page = st.radio("Navigation", ["📊 總覽 (Dashboard)", "📈 報表 (Analytics)", "⚙️ 設定 (Settings)"], label_visibility="collapsed")
     
     st.divider()
@@ -367,7 +336,7 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 頁面內容：📊 總覽 (Dashboard) - 參考圖一設計
+# 頁面內容：📊 總覽 (Dashboard)
 # ==========================================
 if page == "📊 總覽 (Dashboard)":
     # 標題與日期選擇
@@ -412,7 +381,51 @@ if page == "📊 總覽 (Dashboard)":
     </div>
     """, unsafe_allow_html=True)
 
-    # 2. 當日明細列表 (仿照圖一)
+    # 2. 打卡日曆區塊 (修復並加回)
+    st.markdown("<h3 style='margin-top: 30px; margin-bottom: 16px;'>打卡月曆</h3>", unsafe_allow_html=True)
+    with st.container():
+        st.markdown(f"<div class='pro-card' style='padding: 20px 24px;'>", unsafe_allow_html=True)
+        
+        work_dates = set(df[(df['類型'] == '收入') | (df['類型'] == '開銷')]['日期'].dt.date) if not df.empty else set()
+        off_dates = set(df[df['類型'] == '休假']['日期'].dt.date) if not df.empty else set()
+        
+        cal_year = st.session_state.selected_date.year
+        cal_month = st.session_state.selected_date.month
+        cal_matrix = calendar.monthcalendar(cal_year, cal_month)
+        
+        st.markdown(f"<h5 style='text-align:center; color:{COLOR_TEXT_SECONDARY}; margin-top:0px; margin-bottom:15px;'>{cal_year} - {cal_month:02d}</h5>", unsafe_allow_html=True)
+        
+        cols = st.columns(7)
+        for i, wd in enumerate(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]): 
+            cols[i].markdown(f"<div style='text-align: center; color:{COLOR_TEXT_SECONDARY}; font-size:13px; font-weight:600;'>{wd}</div>", unsafe_allow_html=True)
+        
+        st.write("") # 增加一點間距
+        for week in cal_matrix:
+            cols = st.columns(7)
+            for i, day in enumerate(week):
+                if day != 0:
+                    cur_d = date(cal_year, cal_month, day)
+                    is_sel = (cur_d == st.session_state.selected_date)
+                    btn_type = "primary" if is_sel else "secondary"
+                    
+                    if cur_d in off_dates:
+                        b_label = f"{day}🏖️"
+                    elif cur_d in work_dates:
+                        b_label = f"{day}✅"
+                    else:
+                        b_label = str(day)
+                        
+                    cols[i].button(
+                        label=b_label, 
+                        key=f"cal_{cal_year}_{cal_month}_{day}_{k}", 
+                        use_container_width=True, 
+                        type=btn_type, 
+                        on_click=change_date, 
+                        args=(cur_d,)
+                    )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # 3. 當日明細列表
     st.markdown("<h3 style='margin-top: 30px; margin-bottom: 16px;'>本日明細</h3>", unsafe_allow_html=True)
     
     if not daily_df.empty:
@@ -446,7 +459,6 @@ if page == "📊 總覽 (Dashboard)":
                 """, unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
             
-            # 編輯/刪除功能 (保持原樣，但放入 Expander)
             with st.expander("🛠️ 編輯或移除紀錄"):
                 edit_df = daily_df.copy()
                 edit_df['日期'] = edit_df['日期'].dt.strftime('%Y-%m-%d')
@@ -469,7 +481,6 @@ if page == "📊 總覽 (Dashboard)":
     if st.button("➕", key="fab_trigger", help="記一筆"):
         st.session_state.show_add_log = not st.session_state.show_add_log
     
-    # 透過 CSS 將按鈕樣式化為 FAB
     st.markdown("""
     <style>
     div.stButton > button[kind="secondary"] {
@@ -479,8 +490,8 @@ if page == "📊 總覽 (Dashboard)":
         width: 64px;
         height: 64px;
         border-radius: 50%;
-        background-color: #06C167;
-        color: white;
+        background-color: #06C167 !important;
+        color: white !important;
         font-size: 32px;
         font-weight: 300;
         border: none;
@@ -493,25 +504,19 @@ if page == "📊 總覽 (Dashboard)":
         line-height: 1;
     }
     div.stButton > button[kind="secondary"]:hover {
-        background-color: #05ad5c;
+        background-color: #05ad5c !important;
         box-shadow: 0 6px 20px rgba(6, 193, 103, 0.6);
         border: none;
-    }
-    div.stButton > button[kind="secondary"]:focus:not(:active) {
-        border: none;
-        color: white;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # 記帳表單彈出視窗 (使用 Expander 模擬)
     if st.session_state.show_add_log:
         with st.expander("📝 快速記一筆 (Quick Log)", expanded=True):
             if st.session_state.show_success: 
                 st.success("✅ 紀錄已成功儲存！")
                 st.session_state.show_success = False
 
-            # 直接使用當前選擇的日期
             record_date = st.session_state.selected_date
             st.caption(f"紀錄日期: {record_date.strftime('%Y-%m-%d')} ({WEEKDAY_CHINESE_MAP[record_date.weekday()]})")
             
@@ -599,7 +604,7 @@ if page == "📊 總覽 (Dashboard)":
                         save_data_batch(rows_to_add)
                         st.session_state.show_success = True
                         st.session_state.input_key += 1
-                        st.session_state.show_add_log = False # 儲存後關閉
+                        st.session_state.show_add_log = False 
                         st.rerun()
                     else:
                         st.warning("請至少輸入一筆資料")
@@ -613,10 +618,9 @@ if page == "📊 總覽 (Dashboard)":
                     st.rerun()
 
 # ==========================================
-# 頁面內容：📈 報表 (Analytics) - 參考圖二設計
+# 頁面內容：📈 報表 (Analytics)
 # ==========================================
 elif page == "📈 報表 (Analytics)":
-    # 月份選擇器
     if not df.empty:
         months = df['日期'].dt.to_period('M').astype(str).unique()
         col_m1, col_m2 = st.columns([3, 2])
@@ -628,12 +632,10 @@ elif page == "📈 報表 (Analytics)":
         month_df = df[df['日期'].dt.to_period('M').astype(str) == selected_month]
         
         if not month_df.empty:
-            # 計算月度數據
             m_inc = month_df[month_df['類型'] == '收入']['金額'].sum()
             m_exp = month_df[month_df['類型'] == '開銷']['金額'].sum()
             m_balance = m_inc - m_exp
             
-            # 1. 月度概況卡片 (仿照圖一上方)
             st.markdown(f"""
             <div class='pro-card' style='margin-top: 10px; background: linear-gradient(135deg, {COLOR_CARD_BG} 0%, #2C2C2E 100%);'>
                 <div class='kpi-container'>
@@ -655,12 +657,10 @@ elif page == "📈 報表 (Analytics)":
             </div>
             """, unsafe_allow_html=True)
 
-            # 2. 收支甜甜圈圖 (仿照圖二，中心顯示結餘)
             st.markdown("<h3 style='margin-top: 30px; margin-bottom: 16px;'>收支分析</h3>", unsafe_allow_html=True)
             with st.container():
                 st.markdown(f"<div class='pro-card' style='padding: 20px 0;'>", unsafe_allow_html=True)
                 
-                # 準備圖表數據
                 pie_data = [
                     {"label": "總收入", "value": m_inc, "color": COLOR_INCOME},
                     {"label": "總支出", "value": m_exp, "color": COLOR_EXPENSE}
@@ -669,7 +669,7 @@ elif page == "📈 報表 (Analytics)":
                 fig = go.Figure(data=[go.Pie(
                     labels=[d['label'] for d in pie_data],
                     values=[d['value'] for d in pie_data],
-                    hole=0.6, # 設定為甜甜圈圖
+                    hole=0.6,
                     marker=dict(colors=[d['color'] for d in pie_data]),
                     textinfo='label+percent',
                     hoverinfo='label+value+percent',
@@ -677,7 +677,6 @@ elif page == "📈 報表 (Analytics)":
                     showlegend=False
                 )])
 
-                # 在中心添加文字
                 fig.add_annotation(
                     text=f"月結餘<br><span style='font-size: 24px; font-weight: 700; color: {COLOR_BALANCE};'>${int(m_balance):,}</span>",
                     x=0.5, y=0.5,
@@ -694,12 +693,10 @@ elif page == "📈 報表 (Analytics)":
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            # 3. 分類明細列表 (仿照圖二下方)
             st.markdown("<h3 style='margin-top: 30px; margin-bottom: 16px;'>分類明細</h3>", unsafe_allow_html=True)
             with st.container():
                 st.markdown(f"<div class='pro-card' style='padding: 8px 24px;'>", unsafe_allow_html=True)
                 
-                # 彙整分類數據
                 category_df = month_df[month_df['類型'] != '休假'].groupby(['類型', '項目'])['金額'].sum().reset_index()
                 category_df = category_df.sort_values(by='金額', ascending=False)
                 
@@ -730,7 +727,7 @@ elif page == "📈 報表 (Analytics)":
         st.info("目前無任何紀錄，請先新增資料。")
 
 # ==========================================
-# 頁面內容：⚙️ 設定 (Settings) - 保持原樣
+# 頁面內容：⚙️ 設定 (Settings)
 # ==========================================
 elif page == "⚙️ 設定 (Settings)":
     st.title("設定")
