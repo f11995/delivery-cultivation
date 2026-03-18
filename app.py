@@ -605,6 +605,85 @@ elif page == "📈 報表 (Analytics)":
                     """, unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 
+            # 📊 新增：每日收支趨勢圖 (可伸縮)
+            with st.expander("📊 每日收支趨勢 (點擊展開/收縮)", expanded=True):
+                trend_df = month_df[month_df['類型'] != '休假'].copy()
+                trend_df.loc[trend_df['類型'] == '開銷', '金額'] *= -1
+                if not trend_df.empty:
+                    # 確保 X 軸為分類型態，避免日期斷層
+                    trend_df['日期字串'] = trend_df['日期'].dt.strftime('%m-%d')
+                    fig_bar = px.bar(
+                        trend_df, x='日期字串', y='金額', color='項目', 
+                        color_discrete_map=CUSTOM_COLORS, barmode='relative',
+                        hover_data=['備註']
+                    )
+                    fig_bar.update_layout(
+                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+                        font=dict(color='#8E8E93'), margin=dict(l=0, r=0, t=20, b=0), 
+                        hovermode="x unified",
+                        xaxis=dict(title="", showgrid=False, type='category'),
+                        yaxis=dict(title="TWD", showgrid=True, gridcolor='#2C2C2E', zeroline=True, zerolinecolor='#8E8E93'),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, title="")
+                    )
+                    st.plotly_chart(fig_bar, use_container_width=True, config={'displayModeBar': False})
+                else:
+                    st.caption("尚無資料可繪製趨勢圖。")
+
+            # 📅 新增：每日細項查詢器
+            st.markdown("<h3 style='margin-top: 30px; margin-bottom: 16px;'>📅 每日明細查詢</h3>", unsafe_allow_html=True)
+            unique_dates = sorted(month_df['日期'].dt.date.unique(), reverse=True)
+            
+            if unique_dates:
+                selected_detail_date = st.selectbox(
+                    "🔍 選擇日期查看當日細項", 
+                    options=["-- 顯示整月所有紀錄 --"] + [d.strftime('%Y-%m-%d') for d in unique_dates],
+                    label_visibility="collapsed"
+                )
+                
+                with st.container(border=True):
+                    if selected_detail_date == "-- 顯示整月所有紀錄 --":
+                        display_df = month_df.copy()
+                    else:
+                        display_df = month_df[month_df['日期'].dt.strftime('%Y-%m-%d') == selected_detail_date]
+                    
+                    display_dates = sorted(display_df['日期'].dt.date.unique(), reverse=True)
+                    
+                    for d in display_dates:
+                        day_data = display_df[display_df['日期'].dt.date == d]
+                        d_str = d.strftime('%m/%d')
+                        wd_str = WEEKDAY_MAP[d.weekday()]
+                        
+                        st.markdown(f"<div style='color:{COLOR_TEXT_SECONDARY}; font-size:14px; font-weight:600; margin-top:10px; margin-bottom:5px; border-bottom:1px solid #2C2C2E; padding-bottom:5px;'>{d_str} ({wd_str})</div>", unsafe_allow_html=True)
+                        
+                        for _, row in day_data.iterrows():
+                            c_type = row['類型']
+                            c_item = row['項目']
+                            c_amount = row['金額']
+                            c_note = row['備註']
+                            c_incident = row.get('異常', 'False') == 'True'
+                            
+                            icon = CATEGORY_ICONS.get(c_item, CATEGORY_ICONS.get(c_type, "📝"))
+                            amount_class = "income" if c_type == "收入" else ("expense" if c_type == "開銷" else "")
+                            amount_sign = "+" if c_type == "收入" else ("-" if c_type == "開銷" else "")
+                            amount_str = f"{amount_sign}${int(c_amount):,}" if c_type != "休假" else "休假"
+                            
+                            subtitle = c_note if c_note else c_item
+                            if c_incident: subtitle = f"⚠️ {subtitle}"
+                            if c_type == '收入' and row['上線時數'] > 0: subtitle += f" ({row['上線時數']}h)"
+
+                            st.markdown(f"""
+                            <div class='list-item' style='padding: 8px 0;'>
+                                <div class='list-icon' style='width:32px; height:32px; font-size:16px;'>{icon}</div>
+                                <div class='list-content'>
+                                    <div class='list-title' style='font-size:15px;'>{c_item}</div>
+                                    <div class='list-subtitle' style='font-size:12px;'>{subtitle}</div>
+                                </div>
+                                <div class='list-amount {amount_class}' style='font-size:16px;'>{amount_str}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+            else:
+                st.info("本月尚無明細資料。")
+
         else:
             st.info("本月尚無數據。")
     else:
