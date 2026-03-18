@@ -598,10 +598,34 @@ with tab_report:
             if current_target > 0:
                 progress_val = min(m_inc / current_target, 1.0)
                 rem = current_target - m_inc
-                st.markdown(f"<div style='margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;'><div style='display:flex; justify-content:space-between; font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-bottom:8px; font-weight:600;'><span>🎯 收入目標進度：${int(m_inc):,} / ${current_target:,}</span><span>{int(progress_val*100)}%</span></div>", unsafe_allow_html=True)
+                st.markdown(f"""
+                    <div style='margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;'>
+                        <div style='display:flex; justify-content:space-between; font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-bottom:8px; font-weight:600;'>
+                            <span>🎯 收入目標進度：${int(m_inc):,} / ${current_target:,}</span>
+                            <span>{int(progress_val*100)}%</span>
+                        </div>
+                """, unsafe_allow_html=True)
                 st.progress(progress_val)
-                if rem > 0: st.markdown(f"<div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; text-align:right; margin-top:6px;'>距離目標還差 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>${int(rem):,}</span></div>", unsafe_allow_html=True)
-                else: st.markdown(f"<div style='font-size:13px; color:{COLOR_INCOME}; text-align:right; margin-top:6px; font-weight:700;'>🎉 已達成設定目標！</div>", unsafe_allow_html=True)
+                
+                # 💡 修復：加回剩餘天數與日均目標的智能計算
+                if rem > 0:
+                    s_year, s_month = map(int, selected_month.split('-'))
+                    last_day_of_month = calendar.monthrange(s_year, s_month)[1]
+                    
+                    if today.year == s_year and today.month == s_month:
+                        days_left = last_day_of_month - today.day + 1
+                    elif date(s_year, s_month, last_day_of_month) > today:
+                        days_left = last_day_of_month
+                    else:
+                        days_left = 0
+                        
+                    if days_left > 0:
+                        daily_req = int(rem / days_left)
+                        st.markdown(f"<div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; text-align:right; margin-top:6px;'>距離目標還差 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>${int(rem):,}</span>。本月還剩 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>{days_left}</span> 天，平均需賺 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>${daily_req:,}</span> / 天</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; text-align:right; margin-top:6px;'>距離目標還差 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>${int(rem):,}</span>，但本月已結束。</div>", unsafe_allow_html=True)
+                else: 
+                    st.markdown(f"<div style='font-size:13px; color:{COLOR_INCOME}; text-align:right; margin-top:6px; font-weight:700;'>🎉 已達成設定目標！</div>", unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
