@@ -478,6 +478,16 @@ elif page == "📈 報表 (Analytics)":
         with col_m2:
             selected_month = st.selectbox("選擇月份", sorted(months, reverse=True), label_visibility="collapsed")
         
+        # --- 🎯 恢復：設定目標輸入區 ---
+        current_target = int(settings.get("目標金額", 0)) if str(settings.get("目標月份")) == selected_month else 0
+        with st.expander(f"🎯 設定 {selected_month} 預期目標收入"):
+            new_target = st.number_input("目標金額 (TWD)", min_value=0, step=1000, value=current_target)
+            if st.button("💾 儲存目標", type="primary", use_container_width=True): 
+                update_setting("目標月份", str(selected_month))
+                update_setting("目標金額", int(new_target))
+                st.rerun()
+        # ----------------------------
+
         month_df = df[df['日期'].dt.to_period('M').astype(str) == selected_month]
         
         if not month_df.empty:
@@ -504,8 +514,30 @@ elif page == "📈 報表 (Analytics)":
                         <div class='kpi-value expense'>${int(m_exp):,}</div>
                     </div>
                 </div>
-            </div>
             """, unsafe_allow_html=True)
+            
+            # --- 🎯 恢復：目標進度條 (融合於卡片底部) ---
+            if current_target > 0:
+                progress_val = min(m_inc / current_target, 1.0)
+                rem = current_target - m_inc
+                st.markdown(f"""
+                    <div style='margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;'>
+                        <div style='display:flex; justify-content:space-between; font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-bottom:8px; font-weight:600;'>
+                            <span>🎯 收入目標達成率：${int(m_inc):,} / ${current_target:,}</span>
+                            <span>{int(progress_val*100)}%</span>
+                        </div>
+                """, unsafe_allow_html=True)
+                st.progress(progress_val)
+                
+                if rem > 0:
+                    st.markdown(f"<div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; text-align:right; margin-top:6px;'>距離目標還差 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>${int(rem):,}</span></div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div style='font-size:13px; color:{COLOR_INCOME}; text-align:right; margin-top:6px; font-weight:700;'>🎉 已達成設定目標！超標 ${int(-rem):,}</div>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            # 關閉 pro-card 容器
+            st.markdown("</div>", unsafe_allow_html=True)
+            # ----------------------------------------
 
             # 中心結餘圓餅圖
             st.markdown("<h3 style='margin-top: 30px; margin-bottom: 16px;'>收支分析</h3>", unsafe_allow_html=True)
