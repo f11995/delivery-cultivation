@@ -257,7 +257,7 @@ today = date.today()
 total_income = df[df['類型'] == '收入']['金額'].sum() if not df.empty else 0
 total_hours = df[df['類型'] == '收入']['上線時數'].sum() if not df.empty else 0.0
 
-# 💡 修復：在此處補上當月目標完成率的計算，定義 target_str 變數
+# 計算當月目標完成率與進度
 current_month_str = today.strftime('%Y-%m')
 current_target = int(settings.get("目標金額", 0)) if str(settings.get("目標月份")) == current_month_str else 0
 this_month_df = df[df['日期'].dt.to_period('M').astype(str) == current_month_str] if not df.empty else pd.DataFrame()
@@ -291,10 +291,9 @@ st.write("")
 tab_dash, tab_add, tab_report, tab_settings = st.tabs(["📊 總覽 (Dashboard)", "➕ 記一筆 (Add Log)", "📈 報表 (Analytics)", "⚙️ 設定 (Settings)"])
 
 # ==========================================
-# 分頁：📊 總覽 (Dashboard) - 豐富視覺化重構
+# 分頁：📊 總覽 (Dashboard)
 # ==========================================
 with tab_dash:
-    # 準備總覽所需的數據
     start_of_week = today - timedelta(days=today.weekday())
     this_week_df = df[(df['日期'].dt.date >= start_of_week) & (df['日期'].dt.date <= today)] if not df.empty else pd.DataFrame()
     today_df = df[df['日期'].dt.date == today] if not df.empty else pd.DataFrame()
@@ -306,27 +305,22 @@ with tab_dash:
     d_wage = d_inc / d_hr if d_hr > 0 else 0
     w_inc = this_week_df[this_week_df['類型'] == '收入']['金額'].sum() if not this_week_df.empty else 0
     
-    # 1. 頂部四大指標卡片 (帶有漸層背景)
+    # 1. 頂部四大指標卡片
     c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.markdown(f"<div class='kpi-card-green'><div class='kpi-title'>今日收入 (Today)</div><div class='kpi-value'>${int(d_inc):,}</div></div>", unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"<div class='kpi-card-blue'><div class='kpi-title'>今日時薪 (Hourly Rate)</div><div class='kpi-value'>${int(d_wage):,}</div></div>", unsafe_allow_html=True)
-    with c3:
-        st.markdown(f"<div class='kpi-card-purple'><div class='kpi-title'>本週累積 (This Week)</div><div class='kpi-value'>${int(w_inc):,}</div></div>", unsafe_allow_html=True)
-    with c4:
-        st.markdown(f"<div class='kpi-card-orange'><div class='kpi-title'>當月目標完成率 (Target)</div><div class='kpi-value'>{target_str}</div></div>", unsafe_allow_html=True)
+    with c1: st.markdown(f"<div class='kpi-card-green'><div class='kpi-title'>今日收入 (Today)</div><div class='kpi-value'>${int(d_inc):,}</div></div>", unsafe_allow_html=True)
+    with c2: st.markdown(f"<div class='kpi-card-blue'><div class='kpi-title'>今日時薪 (Hourly Rate)</div><div class='kpi-value'>${int(d_wage):,}</div></div>", unsafe_allow_html=True)
+    with c3: st.markdown(f"<div class='kpi-card-purple'><div class='kpi-title'>本週累積 (This Week)</div><div class='kpi-value'>${int(w_inc):,}</div></div>", unsafe_allow_html=True)
+    with c4: st.markdown(f"<div class='kpi-card-orange'><div class='kpi-title'>當月目標完成率 (Target)</div><div class='kpi-value'>{target_str}</div></div>", unsafe_allow_html=True)
     
     st.write("")
 
-    # 2. 中間板塊：趨勢圖 與 成就中心
+    # 2. 中間板塊
     col_trend, col_tier = st.columns([2, 1.2])
     with col_trend:
         st.markdown("### 📈 近七日收入趨勢")
         with st.container(border=True):
             if not l7_df.empty:
                 l7_inc_df = l7_df[l7_df['類型'] == '收入'].groupby('日期')['金額'].sum().reset_index()
-                # 補齊 7 天日期避免斷層
                 date_range = pd.date_range(start=last_7_days, end=today)
                 l7_inc_df = l7_inc_df.set_index('日期').reindex(date_range).fillna(0).reset_index()
                 l7_inc_df.columns = ['日期', '金額']
@@ -334,43 +328,25 @@ with tab_dash:
                 
                 fig_l7 = px.bar(l7_inc_df, x='日期字串', y='金額', text_auto='.0f')
                 fig_l7.update_traces(marker_color=COLOR_INCOME, textfont_size=12, textangle=0, textposition="outside", cliponaxis=False)
-                fig_l7.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
-                    font=dict(color=COLOR_TEXT_SECONDARY), margin=dict(l=0, r=0, t=15, b=0),
-                    xaxis=dict(title="", showgrid=False, type='category'),
-                    yaxis=dict(title="", showgrid=True, gridcolor='#2C2C2E', zeroline=False),
-                    height=260
-                )
+                fig_l7.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color=COLOR_TEXT_SECONDARY), margin=dict(l=0, r=0, t=15, b=0), xaxis=dict(title="", showgrid=False, type='category'), yaxis=dict(title="", showgrid=True, gridcolor='#2C2C2E', zeroline=False), height=260)
                 st.plotly_chart(fig_l7, use_container_width=True, config={'displayModeBar': False})
-            else:
-                st.info("近七日尚無收入紀錄。")
+            else: st.info("近七日尚無收入紀錄。")
 
     with col_tier:
         st.markdown("### 🏆 駕駛成就中心")
         with st.container(border=True):
-            st.markdown(f"""
-            <div style='display: flex; align-items: center; margin-bottom: 20px;'>
-                <span style='font-size: 45px; margin-right: 15px;'>{d_icon}</span>
-                <div>
-                    <div style='font-size: 22px; font-weight: 700; color: {COLOR_TEXT_PRIMARY};'>{driver_tier}</div>
-                    <div style='font-size: 14px; color: {COLOR_TEXT_SECONDARY};'>{d_title}</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"<div style='display: flex; align-items: center; margin-bottom: 20px;'><span style='font-size: 45px; margin-right: 15px;'>{d_icon}</span><div><div style='font-size: 22px; font-weight: 700; color: {COLOR_TEXT_PRIMARY};'>{driver_tier}</div><div style='font-size: 14px; color: {COLOR_TEXT_SECONDARY};'>{d_title}</div></div></div>", unsafe_allow_html=True)
             st.progress(prog)
             st.markdown(f"<div style='display:flex; justify-content:space-between; font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-top:8px;'><span>累積: ${int(total_income):,}</span><span>距離下級差: ${int(next_exp - total_income):,}</span></div>", unsafe_allow_html=True)
-            
             st.markdown("<hr style='border-color: #2C2C2E; margin: 15px 0;'>", unsafe_allow_html=True)
             
-            # 動態智能洞察
             insight = "穩定發揮，保持這個節奏！繼續累積你的駕駛評級。"
             if d_wage > 250: insight = "🔥 狀態極佳！今日時薪突破 250 元，堪稱接單大師！"
             elif d_inc == 0: insight = "🛵 準備好上線了嗎？安全第一，祝你今天單單順路！"
             elif w_inc > 5000: insight = "🌟 本週累積已突破 5,000 元，距離財務目標又近了一大步！"
-                
             st.markdown(f"<div style='font-size: 14px; color: {COLOR_BALANCE}; line-height: 1.5;'>💡 系統洞察：<br><span style='color: {COLOR_TEXT_PRIMARY};'>{insight}</span></div>", unsafe_allow_html=True)
 
-    # 3. 底部板塊：最近紀錄
+    # 3. 底部板塊
     st.markdown("### 🕒 最近動態 (Recent Logs)")
     with st.container(border=True):
         if not df.empty:
@@ -385,15 +361,9 @@ with tab_dash:
                 amount_class = "income" if r_type == "收入" else ("expense" if r_type == "開銷" else "")
                 amount_str = f"${int(r_amount):,}" if r_type != '休假' else '休假'
                 sign = "+" if r_type == '收入' else ("-" if r_type == "開銷" else "")
-                
-                recent_html += f"<div class='list-item' style='padding: 10px 0;'>"
-                recent_html += f"<div class='list-icon' style='width:36px; height:36px; font-size:18px;'>{icon}</div>"
-                recent_html += f"<div class='list-content'><div class='list-title' style='font-size: 15px;'>{r_item}</div><div class='list-subtitle'>{r_date} · {r_type}</div></div>"
-                recent_html += f"<div class='list-amount {amount_class}' style='font-size:16px;'>{sign}{amount_str}</div>"
-                recent_html += f"</div>"
+                recent_html += f"<div class='list-item' style='padding: 10px 0;'><div class='list-icon' style='width:36px; height:36px; font-size:18px;'>{icon}</div><div class='list-content'><div class='list-title' style='font-size: 15px;'>{r_item}</div><div class='list-subtitle'>{r_date} · {r_type}</div></div><div class='list-amount {amount_class}' style='font-size:16px;'>{sign}{amount_str}</div></div>"
             st.markdown(recent_html, unsafe_allow_html=True)
-        else:
-            st.caption("目前無任何紀錄。")
+        else: st.caption("目前無任何紀錄。")
 
 # ==========================================
 # 分頁：➕ 記一筆 (高密度並排表單)
@@ -567,7 +537,7 @@ with tab_add:
                         st.rerun()
 
 # ==========================================
-# 分頁：📈 報表 (Analytics) - HTML 完全無縮排防雷版
+# 分頁：📈 報表 (Analytics) 
 # ==========================================
 with tab_report:
     if not df.empty:
@@ -607,25 +577,23 @@ with tab_report:
                 """, unsafe_allow_html=True)
                 st.progress(progress_val)
                 
-                # 💡 修復：加回剩餘天數與日均目標的智能計算
+                # 💡 完美結合：剩餘天數與日均目標智能計算
                 if rem > 0:
                     s_year, s_month = map(int, selected_month.split('-'))
                     last_day_of_month = calendar.monthrange(s_year, s_month)[1]
                     
-                    if today.year == s_year and today.month == s_month:
-                        days_left = last_day_of_month - today.day + 1
-                    elif date(s_year, s_month, last_day_of_month) > today:
-                        days_left = last_day_of_month
-                    else:
-                        days_left = 0
+                    if today.year == s_year and today.month == s_month: days_left = last_day_of_month - today.day + 1
+                    elif date(s_year, s_month, last_day_of_month) > today: days_left = last_day_of_month
+                    else: days_left = 0
                         
                     if days_left > 0:
                         daily_req = int(rem / days_left)
-                        st.markdown(f"<div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; text-align:right; margin-top:6px;'>距離目標還差 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>${int(rem):,}</span>。本月還剩 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>{days_left}</span> 天，平均需賺 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>${daily_req:,}</span> / 天</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; text-align:right; margin-top:6px;'>距離目標還差 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>${int(rem):,}</span>。本月還剩 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>{days_left}</span> 天，平均需賺 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>${daily_req:,}</span> / 天才能達標！</div>", unsafe_allow_html=True)
                     else:
                         st.markdown(f"<div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; text-align:right; margin-top:6px;'>距離目標還差 <span style='color:{COLOR_TEXT_PRIMARY}; font-weight:700;'>${int(rem):,}</span>，但本月已結束。</div>", unsafe_allow_html=True)
                 else: 
-                    st.markdown(f"<div style='font-size:13px; color:{COLOR_INCOME}; text-align:right; margin-top:6px; font-weight:700;'>🎉 已達成設定目標！</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size:13px; color:{COLOR_INCOME}; text-align:right; margin-top:6px; font-weight:700;'>🎉 已達成設定目標！超標 ${int(-rem):,}</div>", unsafe_allow_html=True)
+                    
                 st.markdown("</div>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -656,7 +624,6 @@ with tab_report:
 
             with col_list:
                 st.markdown("#### 分類明細")
-                # 💡 修復：嚴格將所有 HTML 濃縮為單行組裝，徹底阻絕 Markdown Code Block 渲染問題
                 category_df = month_df[month_df['類型'] != '休假'].groupby(['類型', '項目'])['金額'].sum().reset_index()
                 category_df = category_df.sort_values(by='金額', ascending=False)
                 
