@@ -444,10 +444,11 @@ with tab_add:
                 
                 if c_sub.button("🚀 儲存", type="primary", use_container_width=True):
                     rows_to_add = []
-                    val_amount = amount if platform_mode == "單一" else ((amount_u or 0) + (amount_f or 0))
+                    # 💡 修復：加入 (amount or 0) 防呆機制，確保沒填收入時不會變成 None
+                    val_amount = (amount or 0) if platform_mode == "單一" else ((amount_u or 0) + (amount_f or 0))
                     
                     if val_amount > 0:
-                        if platform_mode == "單一": rows_to_add.append([str(record_date), "收入", item, int(amount), hours, note, str(is_incident)])
+                        if platform_mode == "單一": rows_to_add.append([str(record_date), "收入", item, int(amount or 0), hours, note, str(is_incident)])
                         else:
                             if (amount_u or 0) > 0: rows_to_add.append([str(record_date), "收入", "Uber Eats", int(amount_u), hours, note, str(is_incident)])
                             if (amount_f or 0) > 0: rows_to_add.append([str(record_date), "收入", "Foodpanda", int(amount_f), 0.0, note, str(is_incident)])
