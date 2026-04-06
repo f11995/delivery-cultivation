@@ -54,7 +54,7 @@ DRIVER_TIERS = [
 ]
 
 # ==========================================
-# 🌐 單機版專屬資料庫引擎
+# 🌐 單機版專屬資料庫引擎 (自動升級版)
 # ==========================================
 @st.cache_resource
 def get_gspread_client():
@@ -81,7 +81,7 @@ def get_records_ws():
     try: return sheet.worksheet("Records")
     except gspread.exceptions.WorksheetNotFound: 
         ws = sheet.add_worksheet(title="Records", rows="1000", cols="10")
-        ws.append_row(["日期", "類型", "項目", "金額", "上線時數", "備註", "異常"])
+        ws.append_row(["日期", "類型", "項目", "金額", "上線時數", "備註", "異常", "單量", "趟獎", "小費"])
         return ws
 
 @st.cache_resource
@@ -96,11 +96,28 @@ def get_settings_ws():
 @st.cache_data(ttl=10, show_spinner=False)
 def load_data():
     ws = get_records_ws()
+    headers = ws.row_values(1)
+    
+    # 💡 無痛資料庫升級機制：自動補齊新欄位
+    expected_headers = ["日期", "類型", "項目", "金額", "上線時數", "備註", "異常", "單量", "趟獎", "小費"]
+    missing_headers = [h for h in expected_headers if h not in headers]
+    if missing_headers:
+        for i, h in enumerate(missing_headers):
+            ws.update_cell(1, len(headers) + i + 1, h)
+        headers.extend(missing_headers)
+
     records = ws.get_all_records()
     df = pd.DataFrame(records)
     if not df.empty:
-        if "上線時數" not in df.columns: df["上線時數"] = 0.0
-        if "異常" not in df.columns: df["異常"] = "False"
+        # 確保所有新欄位都有預設值
+        for col in expected_headers:
+            if col not in df.columns:
+                df[col] = 0 if col in ["單量", "趟獎", "小費", "上線時數", "金額"] else ""
+        
+        # 強制轉換數字型態防呆
+        for num_col in ["單量", "趟獎", "小費", "金額", "上線時數"]:
+            df[num_col] = pd.to_numeric(df[num_col], errors='coerce').fillna(0)
+            
         df['日期'] = pd.to_datetime(df['日期'])
     return df
 
@@ -165,7 +182,6 @@ st.markdown(f"""
     header[data-testid="stHeader"] {{ background: transparent !important; }}
     footer {{ visibility: hidden; }}
 
-    /* 頂部標籤頁 Tabs 樣式重構 (無側邊欄) */
     .stTabs [data-baseweb="tab-list"] {{ gap: 20px; background-color: transparent; border-bottom: 2px solid #2C2C2E; margin-bottom: 20px; }}
     .stTabs [data-baseweb="tab"] {{ color: {COLOR_TEXT_SECONDARY}; font-weight: 600; font-size: 18px; padding-bottom: 12px; border-bottom: 2px solid transparent; }}
     .stTabs [aria-selected="true"] {{ color: {COLOR_INCOME} !important; border-bottom: 2px solid {COLOR_INCOME} !important; }}
@@ -178,7 +194,6 @@ st.markdown(f"""
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
     }}
 
-    /* 帶漸層背景的 KPI 卡片 */
     .kpi-card-green {{ background: linear-gradient(135deg, rgba(6,193,103,0.15) 0%, rgba(28,28,30,0) 100%); border-left: 4px solid {COLOR_INCOME}; padding: 15px 20px; border-radius: 12px; margin-bottom: 10px; }}
     .kpi-card-blue {{ background: linear-gradient(135deg, rgba(0,229,255,0.15) 0%, rgba(28,28,30,0) 100%); border-left: 4px solid {COLOR_BALANCE}; padding: 15px 20px; border-radius: 12px; margin-bottom: 10px; }}
     .kpi-card-purple {{ background: linear-gradient(135deg, rgba(191,90,242,0.15) 0%, rgba(28,28,30,0) 100%); border-left: 4px solid #BF5AF2; padding: 15px 20px; border-radius: 12px; margin-bottom: 10px; }}
@@ -253,11 +268,9 @@ if "show_success" not in st.session_state: st.session_state.show_success = False
 k = st.session_state.input_key
 today = date.today()
 
-# 計算終身數據
 total_income = df[df['類型'] == '收入']['金額'].sum() if not df.empty else 0
 total_hours = df[df['類型'] == '收入']['上線時數'].sum() if not df.empty else 0.0
 
-# 計算當月目標完成率與進度
 current_month_str = today.strftime('%Y-%m')
 current_target = int(settings.get("目標金額", 0)) if str(settings.get("目標月份")) == current_month_str else 0
 this_month_df = df[df['日期'].dt.to_period('M').astype(str) == current_month_str] if not df.empty else pd.DataFrame()
@@ -271,7 +284,6 @@ else:
 
 driver_tier, next_tier, next_exp, prog, d_title, d_icon = get_driver_tier_info(total_income)
 
-# 頂部標題與狀態列 (完美取代側邊欄，橫向展開)
 col_title, col_sync = st.columns([5, 1])
 with col_title:
     st.markdown(f"""
@@ -287,7 +299,6 @@ with col_sync:
         st.rerun()
 st.write("")
 
-# 建立頂部分頁 (Tabs)
 tab_dash, tab_add, tab_report, tab_settings = st.tabs(["📊 總覽 (Dashboard)", "➕ 記一筆 (Add Log)", "📈 報表 (Analytics)", "⚙️ 設定 (Settings)"])
 
 # ==========================================
@@ -300,17 +311,26 @@ with tab_dash:
     last_7_days = today - timedelta(days=6)
     l7_df = df[(df['日期'].dt.date >= last_7_days) & (df['日期'].dt.date <= today)] if not df.empty else pd.DataFrame()
     
+    # 💡 數據升級：加入均單價與均單速的智能計算
     d_inc = today_df[today_df['類型'] == '收入']['金額'].sum() if not today_df.empty else 0
     d_hr = today_df[today_df['類型'] == '收入']['上線時數'].sum() if not today_df.empty else 0
+    d_ord = today_df[today_df['類型'] == '收入']['單量'].sum() if not today_df.empty and '單量' in today_df.columns else 0
+    
     d_wage = d_inc / d_hr if d_hr > 0 else 0
+    d_aov = d_inc / d_ord if d_ord > 0 else 0
+    d_oph = d_ord / d_hr if d_hr > 0 else 0
     w_inc = this_week_df[this_week_df['類型'] == '收入']['金額'].sum() if not this_week_df.empty else 0
     
-    # 1. 頂部四大指標卡片
+    # 1. 頂部四大指標卡片 (完美融入單量與均單價資訊)
     c1, c2, c3, c4 = st.columns(4)
-    with c1: st.markdown(f"<div class='kpi-card-green'><div class='kpi-title'>今日收入 (Today)</div><div class='kpi-value'>${int(d_inc):,}</div></div>", unsafe_allow_html=True)
-    with c2: st.markdown(f"<div class='kpi-card-blue'><div class='kpi-title'>今日時薪 (Hourly Rate)</div><div class='kpi-value'>${int(d_wage):,}</div></div>", unsafe_allow_html=True)
-    with c3: st.markdown(f"<div class='kpi-card-purple'><div class='kpi-title'>本週累積 (This Week)</div><div class='kpi-value'>${int(w_inc):,}</div></div>", unsafe_allow_html=True)
-    with c4: st.markdown(f"<div class='kpi-card-orange'><div class='kpi-title'>當月目標完成率 (Target)</div><div class='kpi-value'>{target_str}</div></div>", unsafe_allow_html=True)
+    with c1: 
+        st.markdown(f"<div class='kpi-card-green'><div class='kpi-title'>今日收入 (Today)</div><div class='kpi-value'>${int(d_inc):,}</div><div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-top:6px; font-weight:600;'>{int(d_ord)} 單 | 均單 ${int(d_aov)}</div></div>", unsafe_allow_html=True)
+    with c2: 
+        st.markdown(f"<div class='kpi-card-blue'><div class='kpi-title'>今日時薪 (Hourly Rate)</div><div class='kpi-value'>${int(d_wage):,}</div><div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-top:6px; font-weight:600;'>接單效率 {d_oph:.1f} 單/h</div></div>", unsafe_allow_html=True)
+    with c3: 
+        st.markdown(f"<div class='kpi-card-purple'><div class='kpi-title'>本週累積 (This Week)</div><div class='kpi-value'>${int(w_inc):,}</div><div style='font-size:13px; color:transparent; margin-top:6px;'>-</div></div>", unsafe_allow_html=True)
+    with c4: 
+        st.markdown(f"<div class='kpi-card-orange'><div class='kpi-title'>當月目標完成率 (Target)</div><div class='kpi-value'>{target_str}</div><div style='font-size:13px; color:transparent; margin-top:6px;'>-</div></div>", unsafe_allow_html=True)
     
     st.write("")
 
@@ -366,7 +386,7 @@ with tab_dash:
         else: st.caption("目前無任何紀錄。")
 
 # ==========================================
-# 分頁：➕ 記一筆 (高密度並排表單)
+# 分頁：➕ 記一筆 (加入單量與收入拆解)
 # ==========================================
 with tab_add:
     col1, col2 = st.columns([1.5, 1])
@@ -396,15 +416,30 @@ with tab_add:
                 platform_mode = c_mod.radio("模式", ["單一", "雙開"], horizontal=True)
                 
                 amount, amount_u, amount_f = 0, 0, 0
+                orders, orders_u, orders_f = 0, 0, 0
+                base_fare, bonus, tips = 0, 0, 0
                 item = "Uber Eats"
                 
                 if platform_mode == "單一":
                     item = c_p1.selectbox("平台", ["Uber Eats", "Foodpanda", "其他獎金"])
-                    amount = c_p2.number_input("金額 ($)", min_value=0, step=10, value=None, key=f"amt_{k}")
+                    orders = c_p2.number_input("單量 (趟)", min_value=0, step=1, value=0, key=f"ord_{k}")
+                    
+                    st.markdown("<div style='font-size:14px; font-weight:600; margin-top:10px; margin-bottom:5px; color:#8E8E93;'>💵 收入明細拆解 (選填，將自動加總)</div>", unsafe_allow_html=True)
+                    c_i1, c_i2, c_i3, c_i4 = st.columns(4)
+                    base_fare = c_i1.number_input("基本車資", min_value=0, step=10, value=None, key=f"base_{k}")
+                    bonus = c_i2.number_input("趟獎/達標", min_value=0, step=10, value=None, key=f"bonus_{k}")
+                    tips = c_i3.number_input("小費", min_value=0, step=10, value=None, key=f"tips_{k}")
+                    
+                    auto_total = (base_fare or 0) + (bonus or 0) + (tips or 0)
+                    amount = c_i4.number_input("總額 ($)", min_value=0, step=10, value=auto_total if auto_total > 0 else None, key=f"amt_{k}")
                 else:
-                    amount_u = c_p1.number_input("Uber Eats ($)", min_value=0, step=10, value=None, key=f"amtu_{k}")
-                    amount_f = c_p2.number_input("Foodpanda ($)", min_value=0, step=10, value=None, key=f"amtf_{k}")
+                    c_u1, c_u2, c_f1, c_f2 = st.columns(4)
+                    amount_u = c_u1.number_input("UE 總額", min_value=0, step=10, value=None, key=f"amtu_{k}")
+                    orders_u = c_u2.number_input("UE 單量", min_value=0, step=1, value=0, key=f"ordu_{k}")
+                    amount_f = c_f1.number_input("熊貓 總額", min_value=0, step=10, value=None, key=f"amtf_{k}")
+                    orders_f = c_f2.number_input("熊貓 單量", min_value=0, step=1, value=0, key=f"ordf_{k}")
                 
+                st.write("")
                 c_tmod, c_t1, c_t2 = st.columns([1, 1, 1])
                 time_mode = c_tmod.radio("時數", ["手動", "首末單", "反推"], horizontal=True)
                 hours = 0.0
@@ -444,20 +479,20 @@ with tab_add:
                 
                 if c_sub.button("🚀 儲存", type="primary", use_container_width=True):
                     rows_to_add = []
-                    # 💡 修復：加入 (amount or 0) 防呆機制，確保沒填收入時不會變成 None
                     val_amount = (amount or 0) if platform_mode == "單一" else ((amount_u or 0) + (amount_f or 0))
                     
                     if val_amount > 0:
-                        if platform_mode == "單一": rows_to_add.append([str(record_date), "收入", item, int(amount or 0), hours, note, str(is_incident)])
+                        if platform_mode == "單一": 
+                            rows_to_add.append([str(record_date), "收入", item, int(amount or 0), hours, note, str(is_incident), int(orders or 0), int(bonus or 0), int(tips or 0)])
                         else:
-                            if (amount_u or 0) > 0: rows_to_add.append([str(record_date), "收入", "Uber Eats", int(amount_u), hours, note, str(is_incident)])
-                            if (amount_f or 0) > 0: rows_to_add.append([str(record_date), "收入", "Foodpanda", int(amount_f), 0.0, note, str(is_incident)])
+                            if (amount_u or 0) > 0: rows_to_add.append([str(record_date), "收入", "Uber Eats", int(amount_u), hours, note, str(is_incident), int(orders_u or 0), 0, 0])
+                            if (amount_f or 0) > 0: rows_to_add.append([str(record_date), "收入", "Foodpanda", int(amount_f), 0.0, note, str(is_incident), int(orders_f or 0), 0, 0])
                     
-                    if (gas_exp or 0) > 0: rows_to_add.append([str(record_date), "開銷", "機車油錢", int(gas_exp), 0.0, note, str(is_incident)])
-                    if (maint_exp or 0) > 0: rows_to_add.append([str(record_date), "開銷", "機車保養", int(maint_exp), 0.0, note, str(is_incident)])
+                    if (gas_exp or 0) > 0: rows_to_add.append([str(record_date), "開銷", "機車油錢", int(gas_exp), 0.0, note, str(is_incident), 0, 0, 0])
+                    if (maint_exp or 0) > 0: rows_to_add.append([str(record_date), "開銷", "機車保養", int(maint_exp), 0.0, note, str(is_incident), 0, 0, 0])
                     if (other_exp or 0) > 0:
                         if other_name.strip() == "": st.warning("請輸入其他開銷名稱")
-                        else: rows_to_add.append([str(record_date), "開銷", other_name.strip(), int(other_exp), 0.0, note, str(is_incident)])
+                        else: rows_to_add.append([str(record_date), "開銷", other_name.strip(), int(other_exp), 0.0, note, str(is_incident), 0, 0, 0])
                     
                     if len(rows_to_add) > 0:
                         save_data_batch(rows_to_add)
@@ -468,7 +503,7 @@ with tab_add:
             else:
                 note = st.text_input("休假備註", placeholder="放鬆一下...", key=f"note_{k}")
                 if st.button("🚀 儲存休假", type="primary", use_container_width=True):
-                    save_data_batch([[str(record_date), "休假", "休假", 0, 0.0, note, "False"]])
+                    save_data_batch([[str(record_date), "休假", "休假", 0, 0.0, note, "False", 0, 0, 0]])
                     st.session_state.show_success = True
                     st.session_state.input_key += 1
                     st.rerun()
@@ -528,7 +563,8 @@ with tab_add:
                 edit_df = daily_df.copy()
                 edit_df['日期'] = edit_df['日期'].dt.strftime('%Y-%m-%d')
                 edit_df.insert(0, "移除", False)
-                edited_df = st.data_editor(edit_df, hide_index=True, column_config={"移除": st.column_config.CheckboxColumn("勾選移除", default=False)}, disabled=["日期", "類型", "項目", "金額", "上線時數", "備註", "異常"], use_container_width=True, key=f"edit_{st.session_state.selected_date}_{k}")
+                # 💡 防止新欄位被錯誤編輯，統一禁用
+                edited_df = st.data_editor(edit_df, hide_index=True, column_config={"移除": st.column_config.CheckboxColumn("勾選移除", default=False)}, disabled=["日期", "類型", "項目", "金額", "上線時數", "備註", "異常", "單量", "趟獎", "小費"], use_container_width=True, key=f"edit_{st.session_state.selected_date}_{k}")
                 rows_to_delete = edited_df[edited_df["移除"] == True].index.tolist()
                 if len(rows_to_delete) > 0:
                     if st.button("🗑️ 確認移除", type="primary", use_container_width=True):
@@ -538,7 +574,7 @@ with tab_add:
                         st.rerun()
 
 # ==========================================
-# 分頁：📈 報表 (Analytics) 
+# 分頁：📈 報表 (Analytics) - 收入結構進化版
 # ==========================================
 with tab_report:
     if not df.empty:
@@ -563,22 +599,14 @@ with tab_report:
             m_exp = month_df[month_df['類型'] == '開銷']['金額'].sum()
             m_balance = m_inc - m_exp
             
-            # 頂部三大指標
             st.markdown(f"<div class='pro-card' style='background: linear-gradient(135deg, {COLOR_CARD_BG} 0%, #2C2C2E 100%); padding: 25px;'><div class='kpi-container'><div class='kpi-item'><div class='kpi-title'>月總收入</div><div class='kpi-value income'>${int(m_inc):,}</div></div><div style='width: 1px; height: 50px; background-color: rgba(255,255,255,0.1);'></div><div class='kpi-item'><div class='kpi-title'>月淨結餘</div><div class='kpi-value balance' style='font-size: 36px;'>${int(m_balance):,}</div></div><div style='width: 1px; height: 50px; background-color: rgba(255,255,255,0.1);'></div><div class='kpi-item'><div class='kpi-title'>月總支出</div><div class='kpi-value expense'>${int(m_exp):,}</div></div></div>", unsafe_allow_html=True)
             
             if current_target > 0:
                 progress_val = min(m_inc / current_target, 1.0)
                 rem = current_target - m_inc
-                st.markdown(f"""
-                    <div style='margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;'>
-                        <div style='display:flex; justify-content:space-between; font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-bottom:8px; font-weight:600;'>
-                            <span>🎯 收入目標進度：${int(m_inc):,} / ${current_target:,}</span>
-                            <span>{int(progress_val*100)}%</span>
-                        </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"<div style='margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;'><div style='display:flex; justify-content:space-between; font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-bottom:8px; font-weight:600;'><span>🎯 收入目標進度：${int(m_inc):,} / ${current_target:,}</span><span>{int(progress_val*100)}%</span></div>", unsafe_allow_html=True)
                 st.progress(progress_val)
                 
-                # 💡 完美結合：剩餘天數與日均目標智能計算
                 if rem > 0:
                     s_year, s_month = map(int, selected_month.split('-'))
                     last_day_of_month = calendar.monthrange(s_year, s_month)[1]
@@ -601,34 +629,41 @@ with tab_report:
             col_pie, col_list = st.columns([1, 1.2])
 
             with col_pie:
-                st.markdown("#### 收支分析")
+                st.markdown("#### 綜合分析")
                 with st.container(border=True):
+                    # 💡 數據升級：加入收入結構拆解圓餅圖
+                    m_bonus = month_df['趟獎'].sum() if '趟獎' in month_df.columns else 0
+                    m_tips = month_df['小費'].sum() if '小費' in month_df.columns else 0
+                    m_base = m_inc - m_bonus - m_tips
+
+                    st.markdown("<div style='text-align:center; color:#8E8E93; font-size:13px; font-weight:600;'>本月收支比</div>", unsafe_allow_html=True)
                     pie_data = [
                         {"label": "總收入", "value": m_inc, "color": COLOR_INCOME},
                         {"label": "總支出", "value": m_exp, "color": COLOR_EXPENSE}
                     ]
-                    fig = go.Figure(data=[go.Pie(
-                        labels=[d['label'] for d in pie_data],
-                        values=[d['value'] for d in pie_data],
-                        hole=0.6,
-                        marker=dict(colors=[d['color'] for d in pie_data]),
-                        textinfo='label+percent',
-                        hoverinfo='label+value+percent',
-                        showlegend=False
-                    )])
-                    fig.add_annotation(
-                        text=f"月結餘<br><span style='font-size: 26px; font-weight: 700; color: {COLOR_BALANCE};'>${int(m_balance):,}</span>",
-                        x=0.5, y=0.5, font=dict(size=15, color=COLOR_TEXT_SECONDARY), showarrow=False
-                    )
-                    fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                    fig1 = go.Figure(data=[go.Pie(labels=[d['label'] for d in pie_data], values=[d['value'] for d in pie_data], hole=0.6, marker=dict(colors=[d['color'] for d in pie_data]), textinfo='label+percent', hoverinfo='label+value+percent', showlegend=False)])
+                    fig1.add_annotation(text=f"月結餘<br><span style='font-size: 20px; font-weight: 700; color: {COLOR_BALANCE};'>${int(m_balance):,}</span>", x=0.5, y=0.5, font=dict(size=13, color=COLOR_TEXT_SECONDARY), showarrow=False)
+                    fig1.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=220, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                    st.plotly_chart(fig1, use_container_width=True, config={'displayModeBar': False})
+                    
+                    st.markdown("<hr style='border-color: #2C2C2E; margin: 10px 0;'>", unsafe_allow_html=True)
+                    
+                    st.markdown("<div style='text-align:center; color:#8E8E93; font-size:13px; font-weight:600;'>收入結構拆解</div>", unsafe_allow_html=True)
+                    struct_data = [
+                        {"label": "基本車資", "value": m_base, "color": "#00E5FF"},
+                        {"label": "趟獎/達標", "value": m_bonus, "color": "#F6C143"},
+                        {"label": "客戶小費", "value": m_tips, "color": "#BF5AF2"}
+                    ]
+                    fig2 = go.Figure(data=[go.Pie(labels=[d['label'] for d in struct_data], values=[d['value'] for d in struct_data], hole=0.6, marker=dict(colors=[d['color'] for d in struct_data]), textinfo='label+percent', hoverinfo='label+value+percent', showlegend=False)])
+                    fig2.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=200, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                    st.plotly_chart(fig2, use_container_width=True, config={'displayModeBar': False})
 
             with col_list:
                 st.markdown("#### 分類明細")
                 category_df = month_df[month_df['類型'] != '休假'].groupby(['類型', '項目'])['金額'].sum().reset_index()
                 category_df = category_df.sort_values(by='金額', ascending=False)
                 
-                html_list = "<div style='height: 360px; overflow-y: auto; padding: 0 10px;'>"
+                html_list = "<div style='height: 480px; overflow-y: auto; padding: 0 10px;'>"
                 for _, row in category_df.iterrows():
                     c_type = row['類型']
                     c_item = row['項目']
@@ -641,25 +676,13 @@ with tab_report:
                 with st.container(border=True):
                     st.markdown(html_list, unsafe_allow_html=True)
 
-            # 每日收支趨勢圖 (可伸縮)
             with st.expander("📊 每日收支趨勢 (點擊展開)", expanded=True):
                 trend_df = month_df[month_df['類型'] != '休假'].copy()
                 trend_df.loc[trend_df['類型'] == '開銷', '金額'] *= -1
                 if not trend_df.empty:
                     trend_df['日期字串'] = trend_df['日期'].dt.strftime('%m-%d')
-                    fig_bar = px.bar(
-                        trend_df, x='日期字串', y='金額', color='項目', 
-                        color_discrete_map=CUSTOM_COLORS, barmode='relative',
-                        hover_data=['備註']
-                    )
-                    fig_bar.update_layout(
-                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
-                        font=dict(color='#8E8E93'), margin=dict(l=0, r=0, t=20, b=0), 
-                        hovermode="x unified",
-                        xaxis=dict(title="", showgrid=False, type='category'),
-                        yaxis=dict(title="TWD", showgrid=True, gridcolor='#2C2C2E', zeroline=True, zerolinecolor='#8E8E93'),
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, title="")
-                    )
+                    fig_bar = px.bar(trend_df, x='日期字串', y='金額', color='項目', color_discrete_map=CUSTOM_COLORS, barmode='relative', hover_data=['備註'])
+                    fig_bar.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#8E8E93'), margin=dict(l=0, r=0, t=20, b=0), hovermode="x unified", xaxis=dict(title="", showgrid=False, type='category'), yaxis=dict(title="TWD", showgrid=True, gridcolor='#2C2C2E', zeroline=True, zerolinecolor='#8E8E93'), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, title=""))
                     st.plotly_chart(fig_bar, use_container_width=True, config={'displayModeBar': False})
                 else:
                     st.caption("尚無資料可繪製趨勢圖。")
