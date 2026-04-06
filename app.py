@@ -68,7 +68,8 @@ def get_records_ws():
     sheet = get_sheet()
     try: return sheet.worksheet("Records")
     except gspread.exceptions.WorksheetNotFound: 
-        ws = sheet.add_worksheet(title="Records", rows="1000", cols="12")
+        # 💡 將預設創建的欄位數量從 10 加大到 15，預留未來擴充空間
+        ws = sheet.add_worksheet(title="Records", rows="1000", cols="15")
         ws.append_row(["日期", "類型", "項目", "金額", "上線時數", "備註", "異常", "單量", "趟獎", "系統小費", "現金小費"])
         return ws
 
@@ -90,8 +91,17 @@ def load_data():
     expected_headers = ["日期", "類型", "項目", "金額", "上線時數", "備註", "異常", "單量", "趟獎", "系統小費", "現金小費"]
     missing = [h for h in expected_headers if h not in headers]
     if missing:
+        # 🛡️ 關鍵修復：先擴展 Google 試算表欄位，防止超出邊界報錯
+        try:
+            ws.add_cols(5)
+        except Exception:
+            pass
+            
         for i, h in enumerate(missing):
-            ws.update_cell(1, len(headers) + i + 1, h)
+            try:
+                ws.update_cell(1, len(headers) + i + 1, h)
+            except Exception:
+                pass
         headers.extend(missing)
 
     records = ws.get_all_records()
