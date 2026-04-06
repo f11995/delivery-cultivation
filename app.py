@@ -328,13 +328,36 @@ with tab_add:
                     st.session_state.show_success, st.session_state.input_key = True, k+1; st.rerun()
 
     with col_cal:
-        st.markdown("### 📅 打卡月曆")
+        # 💡 補回遺失的：當日四大指標
+        st.markdown("### 📅 當日表現與打卡")
+        
+        daily_df = df[df['日期'].dt.date == st.session_state.selected_date] if not df.empty else pd.DataFrame()
+        d_inc = daily_df[daily_df['類型'] == '收入']['金額'].sum() if not daily_df.empty else 0
+        d_exp = daily_df[daily_df['類型'] == '開銷']['金額'].sum() if not daily_df.empty else 0
+        d_hr = daily_df[daily_df['類型'] == '收入']['上線時數'].sum() if not daily_df.empty else 0.0
+        d_wage = d_inc / d_hr if d_hr > 0 else 0
+        
+        if not daily_df.empty:
+            if any(daily_df['類型'] == '休假'): st.info("🏖️ 當日為排定休假。")
+            if any(daily_df.get('異常', "False") == "True"): st.error("⚠️ 當日有標記異常狀況。")
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("當日收入", f"${int(d_inc):,}")
+        m2.metric("當日開銷", f"${int(d_exp):,}")
+        m3.metric("當日上線", f"{d_hr:.1f}h") 
+        m4.metric("當日時薪", f"${int(d_wage):,}")
+        
+        st.write("---")
+
         work_dates = set(df[df['類型']=='收入']['日期'].dt.date) if not df.empty else set()
         off_dates = set(df[df['類型']=='休假']['日期'].dt.date) if not df.empty else set()
         cal_y, cal_m = st.session_state.selected_date.year, st.session_state.selected_date.month
         matrix = calendar.monthcalendar(cal_y, cal_m)
+        
+        st.markdown(f"<h5 style='text-align:center; color:{COLOR_TEXT_PRIMARY}; margin-bottom:10px;'>👉 {cal_y}年 {cal_m:02d}月</h5>", unsafe_allow_html=True)
+        
         cols = st.columns(7)
-        for i, wd in enumerate(["一","二","三","四","五","六","日"]): cols[i].markdown(f"<center><small>{wd}</small></center>", unsafe_allow_html=True)
+        for i, wd in enumerate(["一","二","三","四","五","六","日"]): cols[i].markdown(f"<div style='text-align: center; color:{COLOR_TEXT_SECONDARY}; font-size:13px; font-weight:600;'>{wd}</div>", unsafe_allow_html=True)
         for week in matrix:
             cols = st.columns(7)
             for i, day in enumerate(week):
@@ -342,6 +365,22 @@ with tab_add:
                     d_obj = date(cal_y, cal_m, day)
                     label = f"{day}🏖️" if d_obj in off_dates else (f"{day}✅" if d_obj in work_dates else str(day))
                     cols[i].button(label, key=f"c_{day}_{k}", use_container_width=True, type="primary" if d_obj==st.session_state.selected_date else "secondary", on_click=change_date, args=(d_obj,))
+
+        # 💡 補回遺失的：歷史紀錄編輯與刪除區塊
+        if not daily_df.empty:
+            st.write("---")
+            with st.expander("🛠️ 編輯或移除當日紀錄"):
+                edit_df = daily_df.copy()
+                edit_df['日期'] = edit_df['日期'].dt.strftime('%Y-%m-%d')
+                edit_df.insert(0, "移除", False)
+                edited_df = st.data_editor(edit_df, hide_index=True, column_config={"移除": st.column_config.CheckboxColumn("勾選移除", default=False)}, disabled=["日期", "類型", "項目", "金額", "上線時數", "備註", "異常", "單量", "趟獎", "系統小費", "現金小費"], use_container_width=True, key=f"edit_{st.session_state.selected_date}_{k}")
+                rows_to_delete = edited_df[edited_df["移除"] == True].index.tolist()
+                if len(rows_to_delete) > 0:
+                    if st.button("🗑️ 確認移除", type="primary", use_container_width=True):
+                        delete_data(rows_to_delete)
+                        st.session_state.show_success = True
+                        st.session_state.input_key += 1
+                        st.rerun()
 
 # ==========================================
 # 分頁：📈 報表 (Analytics) - 小費細分分析
