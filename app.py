@@ -341,11 +341,15 @@ with tab_add:
             if any(daily_df['類型'] == '休假'): st.info("🏖️ 當日為排定休假。")
             if any(daily_df.get('異常', "False") == "True"): st.error("⚠️ 當日有標記異常狀況。")
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("當日收入", f"${int(d_inc):,}")
-        m2.metric("當日開銷", f"${int(d_exp):,}")
-        m3.metric("當日上線", f"{d_hr:.1f}h") 
-        m4.metric("當日時薪", f"${int(d_wage):,}")
+        # 💡 修復：放棄原生的 metric，改用自定義 HTML 確保數字永遠不會被縮寫成 ...
+        st.markdown(f"""
+        <div style='display: flex; justify-content: space-between; text-align: center; margin-bottom: 10px;'>
+            <div><div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-bottom:4px;'>當日收入</div><div style='font-size:22px; font-weight:700; color:{COLOR_TEXT_PRIMARY};'>${int(d_inc):,}</div></div>
+            <div><div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-bottom:4px;'>當日開銷</div><div style='font-size:22px; font-weight:700; color:{COLOR_TEXT_PRIMARY};'>${int(d_exp):,}</div></div>
+            <div><div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-bottom:4px;'>當日上線</div><div style='font-size:22px; font-weight:700; color:{COLOR_TEXT_PRIMARY};'>{d_hr:.1f}h</div></div>
+            <div><div style='font-size:13px; color:{COLOR_TEXT_SECONDARY}; margin-bottom:4px;'>當日時薪</div><div style='font-size:22px; font-weight:700; color:{COLOR_TEXT_PRIMARY};'>${int(d_wage):,}</div></div>
+        </div>
+        """, unsafe_allow_html=True)
         
         st.write("---")
 
